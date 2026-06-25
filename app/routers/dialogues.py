@@ -6,14 +6,14 @@ from app.database import DATABASE
 
 router = APIRouter()
 
-@router.get("/dialogues", response_model=DialoguesSchema)
+@router.get("/dialogues/{user_id}", response_model=DialoguesSchema)
 async def list_dialogues(user_id: UUID):
     """Получить список диалогов для user_id"""
     dialogues = await DATABASE.get_dialogues(user_id)
     return dialogues
 
 
-@router.post("/dialogue", response_model=DialogueSchema)
+@router.post("/dialogue/{user_id}", response_model=DialogueSchema)
 async def create_dialogue(user_id: UUID):
     """Создать новый диалог для user_id"""
     chat_id = str(uuid4())
@@ -28,7 +28,7 @@ async def change_dialogue_name(dialogue_data: DialogueChangeNameSchema):
     return edit_dialogue
 
 
-@router.delete("/dialogue", status_code=204)
+@router.delete("/dialogue/{chat_id}", status_code=204)
 async def delete_dialogue(chat_id: UUID):
     """Удалить диалог по chat_id"""
     success = await DATABASE.delete_dialogue(chat_id)
