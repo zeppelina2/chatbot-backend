@@ -27,6 +27,8 @@ class DialogueSchema(BaseModel):
 class DialoguesSchema(BaseModel):
     dialogues: list[DialogueSchema]
 
+class MessagesSchema(BaseModel):
+    messages: list[MessageSchema]
 
 class DialogueChangeNameSchema(BaseModel):
     chat_id: UUID

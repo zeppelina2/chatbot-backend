@@ -1,11 +1,11 @@
 from datetime import datetime
-from sqlalchemy import JSON, select
+from sqlalchemy import select
 from uuid import UUID
 from fastapi import HTTPException, status
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from app.dialogue import DialogueSchema, DialoguesSchema, DialogueChangeNameSchema
+from app.dialogue import DialogueSchema, DialoguesSchema, DialogueChangeNameSchema, MessageSchema, MessagesSchema
 
 # импорты моделей
 from app.models import Base, DialoguePSQL
@@ -91,6 +91,38 @@ class PostgresDBProvider:
             await session.delete(dialogue)
             await session.commit()
             return True
+
+
+    async def get_messages(self, chat_id: UUID) -> MessagesSchema:
+        """Получить список сообщений в диалоге с chat_id"""
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
+            )
+            dialogue = result.scalar_one_or_none()
+            messages = dialogue.messages
+            return MessagesSchema(
+                messages = [
+                    MessageSchema.model_validate(message) for message in messages
+                ]
+            )
+
+
+    async def delete_messages(self, chat_id: UUID, message_id_list: list[UUID]) -> bool:
+        """Удалить сообщение по chat_id и message_id"""
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
+            )
+            dialogue = result.scalar_one_or_none()
+            messages = dialogue.messages
+            
+            # if not dialogue:
+            #   return { type: "error", error_messages_id_list: [] }
+            messages = [m for m in messages if m.message_id not in message_id_list]
+            dialogue.messages = messages
+            await session.commit()
+            return { type: "success" }
 
 
     # async def append_message(self, chat_id: str, user_id: int, message: JSON):
