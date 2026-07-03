@@ -30,8 +30,8 @@ async def delete_message(chat_id: UUID, message_id: UUID):
 
 
 @router.delete("/messages", status_code=204)
-async def delete_message_list(chat_id: UUID, message_id_list: list[UUID]):
+async def delete_message_list(chat_id: UUID, messages_id_list: list[UUID]):
     """Удалить список сообщений по chat_id и списка [message_id]"""
-    response = await DATABASE.delete_messages(chat_id, message_id_list)
+    response = await DATABASE.delete_messages(chat_id, messages_id_list)
     if response.type == "error":
         raise HTTPException(status_code=404, detail=f"Message {response.error_messages_id_list} not found")

@@ -108,61 +108,28 @@ class PostgresDBProvider:
             )
 
 
-    async def delete_messages(self, chat_id: UUID, message_id_list: list[UUID]) -> bool:
+    async def delete_messages(self, chat_id: UUID, messages_id_list: list[UUID]) -> bool:
         """Удалить сообщение по chat_id и message_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
                 select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
             )
             dialogue = result.scalar_one_or_none()
+            if not dialogue:
+              return { "type": "error", "error_messages_id_list": [] }
             messages = dialogue.messages
-            
-            # if not dialogue:
-            #   return { type: "error", error_messages_id_list: [] }
-            messages = [m for m in messages if m.message_id not in message_id_list]
-            dialogue.messages = messages
+
+            # Проверка: все ли id из messages_id_list существуют в dialogue.messages
+            remaining_messages = []
+            for m in messages:
+                if m.message_id in messages_id_list:
+                    messages_id_list.remove(m.message_id)
+                else:
+                    remaining_messages.append(m)
+            if len(messages_id_list) != 0:
+                return { "type": "error", "error_messages_id_list": messages_id_list }
+
+            # Удаление сообщений
+            dialogue.messages = remaining_messages
             await session.commit()
-            return { type: "success" }
-
-
-    # async def append_message(self, chat_id: str, user_id: int, message: JSON):
-    #     now = datetime.now()
-    #     async with self.SessionLocal() as session:
-    #         dialogue = await session.execute(
-    #             Dialogue.__table__.select().where(Dialogue.chat_id == chat_id)
-    #         )
-    #         row = dialogue.first()
-
-    #         if row:
-    #             dialogue_obj = Dialogue(**row._mapping)
-    #             messages = dialogue_obj.messages or []
-    #             messages.append({
-    #                 "content": message.content,
-    #                 "timestamp": now.isoformat(),
-    #                 "role": message.role,
-    #                 "visible_for_bot": message.visible_for_bot,
-    #                 "visible_for_user": message.visible_for_user
-    #             })
-
-    #             await session.execute(
-    #                 Dialogue.__table__.update()
-    #                 .where(Dialogue.chat_id == chat_id)
-    #                 .values(messages=messages, last_active=now)
-    #             )
-    #             await session.commit()
-    #         else:
-    #             new_dialogue = Dialogue(
-    #                 chat_id=chat_id,
-    #                 user_id=user_id,
-    #                 messages=[{
-    #                     "content": message.content,
-    #                     "timestamp": now.isoformat(),
-    #                     "role": message.role,
-    #                     "visible_for_bot": message.visible_for_bot,
-    #                     "visible_for_user": message.visible_for_user
-    #                 }],
-    #                 last_active=now,
-    #                 status="active"
-    #             )
-    #             session.add(new_dialogue)
-    #             await session.commit()
+            return { "type": "success" }
