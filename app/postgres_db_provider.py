@@ -116,7 +116,7 @@ class PostgresDBProvider:
     async def create_message(self, message_data: CreateMessageSchema) -> MessageSchema:
         """Создать сообщение в диалоге с chat_id"""
         async with self.SessionLocal() as session:
-            message_id = uuid4().hex
+            message_id = str(uuid4())
             result = await session.execute(
                 select(DialoguePSQL).where(DialoguePSQL.chat_id == message_data.chat_id)
             )
@@ -143,7 +143,7 @@ class PostgresDBProvider:
             return MessageSchema.model_validate(new_message)
 
 
-    async def delete_messages(self, chat_id: UUID, messages_id_list: list[UUID]) -> dict[Any, Any]:
+    async def delete_messages(self, chat_id: UUID, messages_id_list_to_remove: list[UUID]) -> dict[Any, Any]:
         """Удалить сообщение по chat_id и message_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
@@ -159,15 +159,18 @@ class PostgresDBProvider:
 
             # Проверка: все ли id из messages_id_list существуют в dialogue.messages
             remaining_messages = []
+            str_ids_to_remove = [str(u) for u in messages_id_list_to_remove]
+            removed_messages = []
+
             for m in messages:
-                if m.message_id in messages_id_list:
-                    messages_id_list.remove(m.message_id)
+                if m["message_id"] in str_ids_to_remove:
+                    str_ids_to_remove.remove(m["message_id"])
+                    removed_messages.append(m)
                 else:
                     remaining_messages.append(m)
-            if len(messages_id_list) != 0:
-                return { "type": "error", "error": f"Messages {messages_id_list} not found" }
+            not_found_messages = str_ids_to_remove
 
             # Удаление сообщений
             dialogue.messages = remaining_messages
             await session.commit()
-            return { "type": "success" }
+            return { "delete": removed_messages, "not_found": not_found_messages }
