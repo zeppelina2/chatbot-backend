@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 class MessageSchema(BaseModel):
-    message_id: UUID
+    message_id: str
     content: str
     created_at: str
     updated_at: str

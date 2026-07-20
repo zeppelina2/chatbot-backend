@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from uuid import UUID
 
-from app.schemas import MessageSchema, RequestMessageDataSchema, CreateMessageSchema
+from app.schemas import MessageSchema, RequestMessageDataSchema, CreateMessageSchema, MessagesSchema
 from app.database import DATABASE
 
 router = APIRouter()
 
-@router.get("/messages", response_model=list[MessageSchema])
+@router.get("/messages", response_model=MessagesSchema)
 async def list_messages(chat_id: UUID):
     """Получить список сообщений в диалоге с chat_id"""
     messages = await DATABASE.get_messages(chat_id)

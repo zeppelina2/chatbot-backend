@@ -110,40 +110,37 @@ class PostgresDBProvider:
                     detail="Dialogue with given chat_id not found"
                 )
             messages = dialogue.messages
-            return MessagesSchema(
-                messages = [
-                    MessageSchema.model_validate(message) for message in messages
-                ]
-            )
+            return MessagesSchema(messages=messages)
 
 
     async def create_message(self, message_data: CreateMessageSchema) -> MessageSchema:
         """Создать сообщение в диалоге с chat_id"""
         async with self.SessionLocal() as session:
-            message_id = str(uuid4())
+            message_id = uuid4().hex
             result = await session.execute(
                 select(DialoguePSQL).where(DialoguePSQL.chat_id == message_data.chat_id)
             )
             dialogue = result.scalar_one_or_none()
+
             if not dialogue:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
                 )
-            dialogue.messages.append(MessageSchema(
-                message_id=message_id,
-                content=message_data.content,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
-                role=message_data.role
-            ))
-            
-            print("dialogue.messages: ", dialogue.messages)
+
+            now = datetime.now().isoformat()
+            new_message = {
+                "message_id": message_id,
+                "content": message_data.content,
+                "created_at": now,
+                "updated_at": now,
+                "role": message_data.role
+            }
+            dialogue.messages.append(new_message)
 
             await session.commit()
             await session.refresh(dialogue)
-            print("dialogue.messages 2: ", dialogue.messages)
-            return MessageSchema.model_validate(dialogue.messages)
+            return MessageSchema.model_validate(new_message)
 
 
     async def delete_messages(self, chat_id: UUID, messages_id_list: list[UUID]) -> dict[Any, Any]:
