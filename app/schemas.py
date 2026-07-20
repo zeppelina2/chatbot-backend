@@ -5,8 +5,8 @@ from uuid import UUID
 class MessageSchema(BaseModel):
     message_id: UUID
     content: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: str
+    updated_at: str
     role: str
 
     class Config:

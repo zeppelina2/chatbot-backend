@@ -130,13 +130,13 @@ class PostgresDBProvider:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
                 )
-            dialogue.messages.append({
-                "message_id": message_id,
-                "content": message_data.content,
-                "created_at": datetime.now(),
-                "updated_at": datetime.now(),
-                "role": message_data.role
-            })
+            dialogue.messages.append(MessageSchema(
+                message_id=message_id,
+                content=message_data.content,
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+                role=message_data.role
+            ))
             
             print("dialogue.messages: ", dialogue.messages)
 
