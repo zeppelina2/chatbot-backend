@@ -3,6 +3,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base
 import uuid
 
+from sqlalchemy.ext.mutable import MutableList
+
 Base = declarative_base()
 
 class DialoguePSQL(Base):
@@ -11,6 +13,6 @@ class DialoguePSQL(Base):
     chat_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False)
     name = Column(String, default="Диалог")
-    messages = Column(JSON, default=list)
+    messages = Column(MutableList.as_mutable(JSON), default=list) # Column(JSON, default=list)
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)

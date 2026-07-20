@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from uuid import UUID
 
-from app.schemas import MessageSchema, RequestMessageDataSchema
+from app.schemas import MessageSchema, RequestMessageDataSchema, CreateMessageSchema
 from app.database import DATABASE
 
 router = APIRouter()
@@ -16,11 +16,11 @@ async def list_messages(chat_id: UUID):
 @router.post("/messages/user", response_model=MessageSchema)
 async def create_message(req_message_data: RequestMessageDataSchema):
     """Создать новое сообщение от пользователя в диалоге с chat_id"""
-    message_data = {
-        "chat_id": req_message_data.chat_id,
-        "content": req_message_data.content,
-        "role": "user"
-    }
+    message_data = CreateMessageSchema(
+        chat_id = req_message_data.chat_id,
+        content = req_message_data.content,
+        role = "user"
+    )
     new_message = await DATABASE.create_message(message_data)
     return new_message
 

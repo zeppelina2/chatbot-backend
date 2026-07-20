@@ -137,9 +137,12 @@ class PostgresDBProvider:
                 "updated_at": datetime.now(),
                 "role": message_data.role
             })
+            
+            print("dialogue.messages: ", dialogue.messages)
 
             await session.commit()
             await session.refresh(dialogue)
+            print("dialogue.messages 2: ", dialogue.messages)
             return MessageSchema.model_validate(dialogue.messages)
 
 

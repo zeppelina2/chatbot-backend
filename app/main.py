@@ -8,6 +8,7 @@ load_dotenv()
 
 from app.database import DATABASE
 from app.routers import dialogues
+from app.routers import messages
 
 # создаем базу или берем существующую, запустится при старте
 @asynccontextmanager
@@ -35,6 +36,7 @@ app.add_middleware(
 
 # Подключаем роутеры
 app.include_router(dialogues.router, prefix="/api", tags=["dialogues"])
+app.include_router(messages.router, prefix="/api", tags=["messages"])
 
 
 @app.get("/health", tags=["system"])
