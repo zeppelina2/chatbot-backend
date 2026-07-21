@@ -2,11 +2,18 @@ from datetime import datetime
 from sqlalchemy import select
 from uuid import UUID, uuid4
 from fastapi import HTTPException, status
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from app.schemas import DialogueSchema, DialoguesSchema, DialogueChangeNameSchema, MessageSchema, MessagesSchema, CreateMessageSchema
+from app.schemas import (
+    DialogueSchema,
+    DialoguesSchema,
+    DialogueChangeNameSchema,
+    MessageSchema,
+    MessagesSchema,
+    CreateMessageSchema,
+    DeleteMessageListSchema
+)
 
 # импорты моделей
 from app.models import Base, DialoguePSQL
@@ -143,34 +150,43 @@ class PostgresDBProvider:
             return MessageSchema.model_validate(new_message)
 
 
-    async def delete_messages(self, chat_id: UUID, messages_id_list_to_remove: list[UUID]) -> dict[Any, Any]:
-        """Удалить сообщение по chat_id и message_id"""
+    async def delete_message_list(self, chat_id: UUID, message_id_list_to_remove: list[UUID]) -> DeleteMessageListSchema:
+        """Удалить сообщение по chat_id и списку message_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
                 select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
             )
             dialogue = result.scalar_one_or_none()
+
             if not dialogue:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
                 )
-            messages = dialogue.messages
+            messages = dialogue.messages or []
 
-            # Проверка: все ли id из messages_id_list существуют в dialogue.messages
+            # Преобразуем входящий список UUID в список строк
+            ids_to_remove = {str(u) for u in message_id_list_to_remove}
+
             remaining_messages = []
-            str_ids_to_remove = [str(u) for u in messages_id_list_to_remove]
-            removed_messages = []
+            removed_ids = set()
 
-            for m in messages:
-                if m["message_id"] in str_ids_to_remove:
-                    str_ids_to_remove.remove(m["message_id"])
-                    removed_messages.append(m)
+            for message in messages:
+                message_id = message.get("message_id")
+
+                if message_id in ids_to_remove:
+                    removed_ids.add(message_id)
                 else:
-                    remaining_messages.append(m)
-            not_found_messages = str_ids_to_remove
+                    remaining_messages.append(message)
+
+            # Что реально удалили
+            deleted = list(removed_ids)
+
+            # Что не нашли
+            not_found = list(ids_to_remove - removed_ids)
 
             # Удаление сообщений
             dialogue.messages = remaining_messages
             await session.commit()
-            return { "delete": removed_messages, "not_found": not_found_messages }
+
+            return { "delete": deleted, "not_found": not_found }

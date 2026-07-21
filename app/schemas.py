@@ -42,3 +42,7 @@ class CreateMessageSchema(BaseModel):
 class RequestMessageDataSchema(BaseModel):
     chat_id: UUID
     content: str
+
+class DeleteMessageListSchema(BaseModel):
+    delete: list[str]
+    not_found: list[str]

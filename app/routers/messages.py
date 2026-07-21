@@ -1,7 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from uuid import UUID
 
-from app.schemas import MessageSchema, RequestMessageDataSchema, CreateMessageSchema, MessagesSchema
+from app.schemas import (
+    MessageSchema,
+    RequestMessageDataSchema,
+    CreateMessageSchema,
+    MessagesSchema,
+    DeleteMessageListSchema
+)
 from app.database import DATABASE
 
 router = APIRouter()
@@ -49,16 +55,15 @@ async def create_message(req_message_data: RequestMessageDataSchema):
     return new_message
 
 
-@router.delete("/messages/{message_id}", response_model=dict)
+@router.delete("/messages/{message_id}", response_model=DeleteMessageListSchema)
 async def delete_message(chat_id: UUID, message_id: UUID):
     """Удалить сообщение по chat_id и message_id"""
-    response = await DATABASE.delete_messages(chat_id, [message_id])
+    response = await DATABASE.delete_message_list(chat_id, [message_id])
     return response
 
 
-@router.delete("/messages")
+@router.delete("/messages", response_model=DeleteMessageListSchema)
 async def delete_message_list(chat_id: UUID, messages_id_list: list[UUID]):
     """Удалить список сообщений по chat_id и списка [message_id]"""
-    response = await DATABASE.delete_messages(chat_id, messages_id_list)
-    if response.type == "error":
-        raise HTTPException(status_code=404, detail=response.error)
+    response = await DATABASE.delete_message_list(chat_id, messages_id_list)
+    return response
