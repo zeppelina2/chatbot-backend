@@ -6,9 +6,8 @@ import uvicorn
 
 load_dotenv()
 
-from app.database import DATABASE
-from app.routers import dialogues
-from app.routers import messages
+from app.init_providers import DATABASE
+from app.routers import dialogues, messages, llm
 
 # создаем базу или берем существующую, запустится при старте
 @asynccontextmanager
@@ -37,7 +36,7 @@ app.add_middleware(
 # Подключаем роутеры
 app.include_router(dialogues.router, prefix="/api", tags=["dialogues"])
 app.include_router(messages.router, prefix="/api", tags=["messages"])
-
+app.include_router(llm.router, prefix="/api", tags=["llm"])
 
 @app.get("/health", tags=["system"])
 async def health_check():

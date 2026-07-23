@@ -5,14 +5,14 @@ from app.schemas import (
     MessageSchema,
     RequestMessageDataSchema,
     CreateMessageSchema,
-    MessagesSchema,
+    MessageListSchema,
     DeleteMessageListSchema
 )
-from app.database import DATABASE
+from app.init_providers import DATABASE
 
 router = APIRouter()
 
-@router.get("/messages", response_model=MessagesSchema)
+@router.get("/messages", response_model=MessageListSchema)
 async def list_messages(chat_id: UUID):
     """Получить список сообщений в диалоге с chat_id"""
     messages = await DATABASE.get_messages(chat_id)
@@ -20,7 +20,7 @@ async def list_messages(chat_id: UUID):
 
 
 @router.post("/messages/user", response_model=MessageSchema)
-async def create_message(req_message_data: RequestMessageDataSchema):
+async def create_message_from_user(req_message_data: RequestMessageDataSchema):
     """Создать новое сообщение от пользователя в диалоге с chat_id"""
     message_data = CreateMessageSchema(
         chat_id = req_message_data.chat_id,
@@ -32,7 +32,7 @@ async def create_message(req_message_data: RequestMessageDataSchema):
 
 
 @router.post("/messages/agent", response_model=MessageSchema)
-async def create_message(req_message_data: RequestMessageDataSchema):
+async def create_message_from_agent(req_message_data: RequestMessageDataSchema):
     """Создать новое сообщение от агента в диалоге с chat_id"""
     message_data = CreateMessageSchema(
         chat_id=req_message_data.chat_id,
@@ -44,7 +44,7 @@ async def create_message(req_message_data: RequestMessageDataSchema):
 
 
 @router.post("/messages/system", response_model=MessageSchema)
-async def create_message(req_message_data: RequestMessageDataSchema):
+async def create_message_from_system(req_message_data: RequestMessageDataSchema):
     """Создать новое системное сообщение в диалоге с chat_id"""
     message_data = CreateMessageSchema(
         chat_id=req_message_data.chat_id,

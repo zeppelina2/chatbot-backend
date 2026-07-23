@@ -10,7 +10,7 @@ from app.schemas import (
     DialoguesSchema,
     DialogueChangeNameSchema,
     MessageSchema,
-    MessagesSchema,
+    MessageListSchema,
     CreateMessageSchema,
     DeleteMessageListSchema
 )
@@ -21,8 +21,8 @@ from app.models import Base, DialoguePSQL
 
 class PostgresDBProvider:
     """Провайдер для работы с базой данных PostgreSQL"""
-    def __init__(self, DATABASE_URL: str):
-        self.engine = create_async_engine(DATABASE_URL, echo=False, future=True)
+    def __init__(self, database_url: str):
+        self.engine = create_async_engine(database_url, echo=False, future=True)
         self.SessionLocal = sessionmaker(
             bind=self.engine,
             class_=AsyncSession,
@@ -104,7 +104,7 @@ class PostgresDBProvider:
             await session.commit()
 
 
-    async def get_messages(self, chat_id: UUID) -> MessagesSchema:
+    async def get_messages(self, chat_id: UUID) -> MessageListSchema:
         """Получить список сообщений в диалоге с chat_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
@@ -117,7 +117,7 @@ class PostgresDBProvider:
                     detail="Dialogue with given chat_id not found"
                 )
             messages = dialogue.messages
-            return MessagesSchema(messages=messages)
+            return MessageListSchema(messages=messages)
 
 
     async def create_message(self, message_data: CreateMessageSchema) -> MessageSchema:

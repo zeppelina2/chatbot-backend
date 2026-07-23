@@ -31,7 +31,7 @@ class DialogueChangeNameSchema(BaseModel):
     chat_id: UUID
     name: str
 
-class MessagesSchema(BaseModel):
+class MessageListSchema(BaseModel):
     messages: list[MessageSchema]
     
 class CreateMessageSchema(BaseModel):
