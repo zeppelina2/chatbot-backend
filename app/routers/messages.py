@@ -31,13 +31,13 @@ async def create_message_from_user(req_message_data: RequestMessageDataSchema):
     return new_message
 
 
-@router.post("/messages/agent", response_model=MessageSchema)
-async def create_message_from_agent(req_message_data: RequestMessageDataSchema):
+@router.post("/messages/assistant", response_model=MessageSchema)
+async def create_message_from_assistant(req_message_data: RequestMessageDataSchema):
     """Создать новое сообщение от агента в диалоге с chat_id"""
     message_data = CreateMessageSchema(
         chat_id=req_message_data.chat_id,
         content=req_message_data.content,
-        role="agent"
+        role="assistant"
     )
     new_message = await DATABASE.create_message(message_data)
     return new_message

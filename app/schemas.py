@@ -3,6 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 class MessageSchema(BaseModel):
+    # тут хорошо добавить еще chat_id
     message_id: str
     content: str
     created_at: str
@@ -34,12 +35,12 @@ class DialogueChangeNameSchema(BaseModel):
 class MessageListSchema(BaseModel):
     messages: list[MessageSchema]
     
-class CreateMessageSchema(BaseModel):
+class CreateMessageSchema(BaseModel): # вместо этого использовать MessageSchema
     chat_id: UUID
     content: str
     role: str
 
-class RequestMessageDataSchema(BaseModel):
+class RequestMessageDataSchema(BaseModel): # вместо этого использовать MessageSchema 
     chat_id: UUID
     content: str
 
