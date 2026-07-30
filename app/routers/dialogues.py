@@ -1,15 +1,15 @@
 from fastapi import APIRouter
 from uuid import UUID
 
-from app.schemas import DialogueSchema, DialoguesSchema, DialogueChangeNameSchema
+from app.schemas import DialogueSchema, DialoguesListSchema
 from app.init_providers import DATABASE
 
 router = APIRouter()
 
-@router.get("/dialogues", response_model=DialoguesSchema)
-async def list_dialogues(user_id: UUID):
+@router.get("/dialogues", response_model=DialoguesListSchema)
+async def get_dialogues_list(user_id: UUID):
     """Получить список диалогов для user_id"""
-    dialogues = await DATABASE.get_dialogues(user_id)
+    dialogues = await DATABASE.get_dialogues_list(user_id)
     return dialogues
 
 
@@ -21,9 +21,9 @@ async def create_dialogue(user_id: UUID):
 
 
 @router.put("/dialogues/{chat_id}", response_model=DialogueSchema)
-async def change_dialogue_name(dialogue_data: DialogueChangeNameSchema):
+async def change_dialogue_name(chat_id: UUID, name: str):
     """Изменить диалог по chat_id"""
-    edit_dialogue = await DATABASE.change_dialogue_name(dialogue_data)
+    edit_dialogue = await DATABASE.change_dialogue_name(chat_id, name)
     return edit_dialogue
 
 

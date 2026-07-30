@@ -1,7 +1,7 @@
 from ollama import AsyncClient
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from app.schemas import MessageListSchema, MessageSchema
+from app.schemas import MessagesListSchema, MessageSchema
 
 
 class OllamaLLMProvider:
@@ -16,40 +16,22 @@ class OllamaLLMProvider:
         self.ollama_url = ollama_url
         self.ollama_model = ollama_model
         self.ollama_timeout = ollama_timeout
-        
+
         # Асинхронный клиент
         self.async_client = AsyncClient(
             host=ollama_url,
             timeout=ollama_timeout
         )
 
-    
-    async def generate_async(self, messages: MessageListSchema) -> MessageSchema:
-        """
-        Асинхронная генерация ответа от LLM.
-        
-        Args:
-            messages: История сообщений диалога
-            model: Имя модели
-            
-        Returns:
-            Словарь с ответом LLM
-        
-        Raises:
-            Exception: Если запрос не удалось выполнить
-        """
-        
-        format_messages = [{ "content": "/no_think", "role": "system" }] + [
-            {"content": message.content, "role": message.role} for message in messages.messages
-        ]
-        
+
+    async def generate_completion_async(self, messages: MessagesListSchema) -> MessageSchema:
+        format_messages = MessagesListSchema.to_raw_messages(messages)
+
         try:
             response = await self.async_client.chat(
                 model=self.ollama_model,
                 messages=format_messages
             )
-
-            print("response", response)
             
             message_from_llm = MessageSchema(
                 message_id = str(uuid4()),
@@ -60,5 +42,6 @@ class OllamaLLMProvider:
             )
 
             return message_from_llm
+
         except Exception as e:
             raise Exception(f"Ошибка при запросе к Ollama: {str(e)}") from e

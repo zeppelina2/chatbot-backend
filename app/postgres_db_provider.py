@@ -7,12 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from app.schemas import (
     DialogueSchema,
-    DialoguesSchema,
-    DialogueChangeNameSchema,
+    DialoguesListSchema,
+    RawMessageSchema,
     MessageSchema,
-    MessageListSchema,
-    CreateMessageSchema,
-    DeleteMessageListSchema
+    MessagesListSchema,
+    DeleteMessagesListSchema
 )
 
 # импорты моделей
@@ -31,20 +30,19 @@ class PostgresDBProvider:
 
 
     async def init_db(self):
-        print("INIT DB CALLED")
         """Создать таблицы, если их нет"""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
 
-    async def get_dialogues(self, user_id: UUID) -> DialoguesSchema:
+    async def get_dialogues_list(self, user_id: UUID) -> DialoguesListSchema:
         """Получить список диалогов по user_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
                 select(DialoguePSQL).where(DialoguePSQL.user_id == user_id)
             )
             dialogues = result.scalars().all()
-            return DialoguesSchema(
+            return DialoguesListSchema(
                 dialogues = [
                     DialogueSchema.model_validate(dialogue) for dialogue in dialogues
                 ]
@@ -68,11 +66,11 @@ class PostgresDBProvider:
             return DialogueSchema.model_validate(dialogue)
 
 
-    async def change_dialogue_name(self, dialogue_data: DialogueChangeNameSchema) -> DialogueSchema:
+    async def change_dialogue_name(self, chat_id, name) -> DialogueSchema:
         """Изменить диалог по chat_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
-                select(DialoguePSQL).where(DialoguePSQL.chat_id == dialogue_data.chat_id)
+                select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
             )
             dialogue = result.scalar_one_or_none()
             if not dialogue:
@@ -80,7 +78,7 @@ class PostgresDBProvider:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
                 )
-            dialogue.name = dialogue_data.name
+            dialogue.name = name
             dialogue.updated_at = datetime.now()
             
             await session.commit()
@@ -104,7 +102,7 @@ class PostgresDBProvider:
             await session.commit()
 
 
-    async def get_messages(self, chat_id: UUID) -> MessageListSchema:
+    async def get_messages_list(self, chat_id: UUID) -> MessagesListSchema:
         """Получить список сообщений в диалоге с chat_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
@@ -117,15 +115,15 @@ class PostgresDBProvider:
                     detail="Dialogue with given chat_id not found"
                 )
             messages = dialogue.messages
-            return MessageListSchema(messages=messages)
+            return MessagesListSchema(messages=messages)
 
 
-    async def create_message(self, message_data: CreateMessageSchema) -> MessageSchema:
+    async def create_message(self, chat_id: UUID, message_data: RawMessageSchema) -> MessageSchema:
         """Создать сообщение в диалоге с chat_id"""
         async with self.SessionLocal() as session:
             message_id = str(uuid4())
             result = await session.execute(
-                select(DialoguePSQL).where(DialoguePSQL.chat_id == message_data.chat_id)
+                select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
             )
             dialogue = result.scalar_one_or_none()
 
@@ -150,7 +148,7 @@ class PostgresDBProvider:
             return MessageSchema.model_validate(new_message)
 
 
-    async def delete_message_list(self, chat_id: UUID, message_id_list_to_remove: list[UUID]) -> DeleteMessageListSchema:
+    async def delete_messages_list(self, chat_id: UUID, messages_id_list_to_remove: list[UUID]) -> DeleteMessagesListSchema:
         """Удалить сообщение по chat_id и списку message_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
@@ -166,7 +164,7 @@ class PostgresDBProvider:
             messages = dialogue.messages or []
 
             # Преобразуем входящий список UUID в список строк
-            ids_to_remove = {str(u) for u in message_id_list_to_remove}
+            ids_to_remove = {str(u) for u in messages_id_list_to_remove}
 
             remaining_messages = []
             removed_ids = set()
