@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from uuid import UUID
 
 from app.schemas import Role, MessageSchema
-from app.init_providers import DATABASE, LLM_PROVIDER
+from app.providers.init_providers import DATABASE, LLM_PROVIDER
 from app.routers.messages import create_message
 
 router = APIRouter()

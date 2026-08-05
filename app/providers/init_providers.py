@@ -1,7 +1,7 @@
 import os
 
-from app.postgres_db_provider import PostgresDBProvider
-from app.ollama_llm_provider import OllamaLLMProvider
+from app.providers.postgres_db_provider import PostgresDBProvider
+from app.providers.ollama_llm_provider import OllamaLLMProvider
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 DATABASE = PostgresDBProvider(DATABASE_URL)

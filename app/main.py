@@ -6,7 +6,7 @@ import uvicorn
 
 load_dotenv()
 
-from app.init_providers import DATABASE
+from app.providers.init_providers import DATABASE
 from app.routers import dialogues, messages, llm
 
 # создаем базу или берем существующую, запустится при старте

@@ -1,4 +1,4 @@
-from app.search_tool import markdown_search_tool
+from app.tools.search_tool import markdown_search_tool
 from datetime import datetime
 
     # async def generate_completion_async(self, messages: list[RawMessage]) -> RawMessage:

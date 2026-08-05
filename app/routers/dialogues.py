@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from uuid import UUID
 
 from app.schemas import DialogueSchema, DialoguesListSchema
-from app.init_providers import DATABASE
+from app.providers.init_providers import DATABASE
 
 router = APIRouter()
 

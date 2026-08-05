@@ -8,7 +8,7 @@ from app.schemas import (
     MessagesListSchema,
     DeleteMessagesListSchema,
 )
-from app.init_providers import DATABASE
+from app.providers.init_providers import DATABASE
 
 router = APIRouter()
 
