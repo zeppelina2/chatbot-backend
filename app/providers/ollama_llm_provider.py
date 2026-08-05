@@ -1,7 +1,7 @@
 from ollama import AsyncClient
 from uuid import uuid4
 
-from app.schemas import MessagesListSchema, MessageSchema
+from app.schemas import MessagesListSchema, MessageSchema, Role
 
 
 class OllamaLLMProvider:
@@ -38,7 +38,7 @@ class OllamaLLMProvider:
                 content = response.message.content,
                 created_at=response.created_at,
                 updated_at=response.created_at,
-                role = "assistant"
+                role = Role.ASSISTANT
             )
 
             return message_from_llm

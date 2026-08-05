@@ -38,7 +38,7 @@ class MessagesListSchema(BaseModel):
     messages: list[MessageSchema]
     
     def to_raw_messages(self) -> list[RawMessageSchema]:
-        return [RawMessageSchema(content = message.content, role = message.role) for message in self.messages]
+        return [RawMessageSchema(content = m.content, role = m.role) for m in self.messages]
 
 
 class DeleteMessagesListSchema(BaseModel):
