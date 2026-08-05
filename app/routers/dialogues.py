@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 from uuid import UUID
 
 from app.schemas import DialogueSchema, DialoguesListSchema
@@ -21,7 +21,7 @@ async def create_dialogue(user_id: UUID):
 
 
 @router.put("/dialogues/{chat_id}", response_model=DialogueSchema)
-async def change_dialogue_name(chat_id: UUID, name: str):
+async def change_dialogue_name(chat_id: UUID, name: str = Body(..., embed=True)):
     """Изменить диалог по chat_id"""
     edit_dialogue = await DATABASE.change_dialogue_name(chat_id, name)
     return edit_dialogue

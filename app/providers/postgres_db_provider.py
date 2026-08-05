@@ -102,7 +102,7 @@ class PostgresDBProvider:
             await session.commit()
 
 
-    async def get_messages_list(self, chat_id: UUID) -> MessagesListSchema:
+    async def get_message_list(self, chat_id: UUID) -> MessagesListSchema:
         """Получить список сообщений в диалоге с chat_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
@@ -148,7 +148,7 @@ class PostgresDBProvider:
             return MessageSchema.model_validate(new_message)
 
 
-    async def delete_messages_list(self, chat_id: UUID, messages_id_list_to_remove: list[UUID]) -> DeleteMessagesListSchema:
+    async def delete_message_list(self, chat_id: UUID, messages_id_list_to_remove: list[UUID]) -> DeleteMessagesListSchema:
         """Удалить сообщение по chat_id и списку message_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
