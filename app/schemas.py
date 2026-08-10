@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from uuid import UUID
 from enum import Enum
+from typing import Any, Dict
 
 
 class Role(str, Enum):
@@ -18,13 +19,13 @@ class Role(str, Enum):
     TOOL = "tool"
 
 
-class RawMessageSchema(BaseModel):
+class Message(BaseModel):
     """Краткая схема сообщения"""
     content: str
     role: Role
 
 
-class MessageSchema(RawMessageSchema):
+class MessageSchemaBD(Message):
     """Полная схема сообщения для записи в БД"""
     message_id: str
     created_at: str
@@ -36,10 +37,10 @@ class MessageSchema(RawMessageSchema):
 
 class MessageListSchema(BaseModel):
     """Схема списка сообщений. Внутри полная схема сообщений"""
-    messages: list[MessageSchema]
+    messages: list[MessageSchemaBD]
 
-    def to_raw_messages(self) -> list[RawMessageSchema]:
-        return [RawMessageSchema(content=m.content, role=m.role) for m in self.messages]
+    def to_raw_messages(self) -> list[Message]:
+        return [Message(content=m.content, role=m.role) for m in self.messages]
 
 
 class DeleteMessageListSchema(BaseModel):
@@ -56,7 +57,7 @@ class DialogueSchema(BaseModel):
     """Схема диалога"""
     chat_id: UUID
     user_id: UUID
-    messages: list[MessageSchema]
+    messages: list[MessageSchemaBD]
     name: str
     created_at: datetime
     updated_at: datetime
@@ -69,4 +70,8 @@ class DialogueListSchema(BaseModel):
     """Схема списка диалога"""
     dialogues: list[DialogueSchema]
 
-# Написать схему для tools
+
+class Tool(BaseModel):
+    """Схема инструментов"""
+    tool_name: str
+    arguments: Dict[str, Any]

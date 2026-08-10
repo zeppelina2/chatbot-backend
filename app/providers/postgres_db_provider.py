@@ -8,8 +8,8 @@ from sqlalchemy.orm import sessionmaker
 from app.schemas import (
     DialogueSchema,
     DialogueListSchema,
-    RawMessageSchema,
-    MessageSchema,
+    Message,
+    MessageSchemaBD,
     MessageListSchema,
     DeleteMessageListSchema
 )
@@ -20,8 +20,10 @@ from app.models import Base, DialoguePSQL
 
 class PostgresDBProvider:
     """Провайдер для работы с базой данных PostgreSQL"""
+
     def __init__(self, database_url: str):
-        self.engine = create_async_engine(database_url, echo=False, future=True)
+        self.engine = create_async_engine(
+            database_url, echo=False, future=True)
         self.SessionLocal = sessionmaker(
             bind=self.engine,
             class_=AsyncSession,
@@ -43,7 +45,7 @@ class PostgresDBProvider:
             )
             dialogues = result.scalars().all()
             return DialogueListSchema(
-                dialogues = [
+                dialogues=[
                     DialogueSchema.model_validate(dialogue) for dialogue in dialogues
                 ]
             )
@@ -80,7 +82,7 @@ class PostgresDBProvider:
                 )
             dialogue.name = name
             dialogue.updated_at = datetime.now()
-            
+
             await session.commit()
             await session.refresh(dialogue)
             return DialogueSchema.model_validate(dialogue)
@@ -118,7 +120,11 @@ class PostgresDBProvider:
             return MessageListSchema(messages=messages)
 
 
-    async def create_message(self, chat_id: UUID, message_data: RawMessageSchema) -> MessageSchema:
+    async def create_message(
+        self,
+        chat_id: UUID,
+        message_data: Message
+    ) -> MessageSchemaBD:
         """Создать сообщение в диалоге с chat_id"""
         async with self.SessionLocal() as session:
             message_id = str(uuid4())
@@ -145,10 +151,14 @@ class PostgresDBProvider:
 
             await session.commit()
             await session.refresh(dialogue)
-            return MessageSchema.model_validate(new_message)
+            return MessageSchemaBD.model_validate(new_message)
 
 
-    async def delete_message_list(self, chat_id: UUID, messages_id_list_to_remove: list[UUID]) -> DeleteMessageListSchema:
+    async def delete_message_list(
+        self,
+        chat_id: UUID,
+        messages_id_list_to_remove: list[UUID]
+    ) -> DeleteMessageListSchema:
         """Удалить сообщение по chat_id и списку message_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
@@ -187,4 +197,4 @@ class PostgresDBProvider:
             dialogue.messages = remaining_messages
             await session.commit()
 
-            return { "delete": deleted, "not_found": not_found }
+            return {"delete": deleted, "not_found": not_found}

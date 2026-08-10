@@ -2,7 +2,7 @@ from typing import Any
 from ollama import AsyncClient
 from uuid import uuid4
 
-from app.schemas import MessageListSchema, MessageSchema, Role
+from app.schemas import Message, Role, Tool
 
 
 class OllamaLLMProvider:
@@ -24,38 +24,13 @@ class OllamaLLMProvider:
             timeout=ollama_timeout
         )
 
-    async def generate_completion_async(
-        self,
-        messages: MessageListSchema
-    ) -> MessageSchema:
-
-        format_messages = MessageListSchema.to_raw_messages(messages)
-
-        try:
-            response = await self.async_client.chat(
-                model=self.ollama_model,
-                messages=format_messages
-            )
-
-            message_from_llm = MessageSchema(
-                message_id=str(uuid4()),
-                content=response.message.content,
-                created_at=response.created_at,
-                updated_at=response.created_at,
-                role=Role.ASSISTANT
-            )
-
-            return message_from_llm
-
-        except Exception as e:
-            raise Exception(f"Ошибка при запросе к Ollama: {str(e)}") from e
-
     # метод, работающий с tools
+
     async def generate_completion_with_tools_async(
         self,
-        messages: MessageListSchema,
+        messages: list[Message],
         tools: dict[str, Any]
-    ) -> MessageSchema:
+    ) -> Tool | Message:
         response = await self.async_client.chat(
             model=self.ollama_model,
             messages=messages,
@@ -63,5 +38,21 @@ class OllamaLLMProvider:
             tools=list(tools.values()),
             think=True
         )
+
+        print("LLM_PROVIDER_RESPONSE", response)
         
-        return response
+        message_from_llm: list[Tool] = []
+        
+        if (response.message.tool_calls):
+            for call in response.message.tool_calls:
+                tool_name = call.function.name
+                arguments = call.function.arguments
+
+                message_from_llm.append(Tool(
+                    tool_name,
+                    arguments
+                ))
+
+        print("MESSAGE_FROM_LLM", message_from_llm)
+
+        return message_from_llm

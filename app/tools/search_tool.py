@@ -2,7 +2,7 @@ from pathlib import Path
 
 # простой поиск в файле. ищем вхождения searchStr
 # и возвращаем массив срезов (100 символов до + searchStr + 100 символов после)
-def markdown_search_tool(searchStr: str) -> list[str]:
+def markdown_search_text(searchStr: str) -> list[str]:
     MD_PATH = Path("/resources/ecumene.md")
 
     if not MD_PATH.exists():
