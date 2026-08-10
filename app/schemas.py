@@ -3,10 +3,11 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 
+
 class Role(str, Enum):
     """
         Роли создателя сообщения.
-        User - от пользователя,
+        user - от пользователя,
         assistant - от LLM,
         system - системный,
         tool - от инструмента (к примеру, фрагмент текста из базы знаний)
@@ -33,15 +34,15 @@ class MessageSchema(RawMessageSchema):
         from_attributes = True
 
 
-class MessagesListSchema(BaseModel):
+class MessageListSchema(BaseModel):
     """Схема списка сообщений. Внутри полная схема сообщений"""
     messages: list[MessageSchema]
-    
+
     def to_raw_messages(self) -> list[RawMessageSchema]:
-        return [RawMessageSchema(content = m.content, role = m.role) for m in self.messages]
+        return [RawMessageSchema(content=m.content, role=m.role) for m in self.messages]
 
 
-class DeleteMessagesListSchema(BaseModel):
+class DeleteMessageListSchema(BaseModel):
     """
         Схема ответа при удалении сообщений из диалога.
         В delete - успешно удаленные uuid сообщений,
@@ -64,6 +65,8 @@ class DialogueSchema(BaseModel):
         from_attributes = True
 
 
-class DialoguesListSchema(BaseModel):
+class DialogueListSchema(BaseModel):
     """Схема списка диалога"""
     dialogues: list[DialogueSchema]
+
+# Написать схему для tools

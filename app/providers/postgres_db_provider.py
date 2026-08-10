@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from app.schemas import (
     DialogueSchema,
-    DialoguesListSchema,
+    DialogueListSchema,
     RawMessageSchema,
     MessageSchema,
-    MessagesListSchema,
-    DeleteMessagesListSchema
+    MessageListSchema,
+    DeleteMessageListSchema
 )
 
 # импорты моделей
@@ -35,14 +35,14 @@ class PostgresDBProvider:
             await conn.run_sync(Base.metadata.create_all)
 
 
-    async def get_dialogues_list(self, user_id: UUID) -> DialoguesListSchema:
+    async def get_dialogue_list(self, user_id: UUID) -> DialogueListSchema:
         """Получить список диалогов по user_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
                 select(DialoguePSQL).where(DialoguePSQL.user_id == user_id)
             )
             dialogues = result.scalars().all()
-            return DialoguesListSchema(
+            return DialogueListSchema(
                 dialogues = [
                     DialogueSchema.model_validate(dialogue) for dialogue in dialogues
                 ]
@@ -102,7 +102,7 @@ class PostgresDBProvider:
             await session.commit()
 
 
-    async def get_message_list(self, chat_id: UUID) -> MessagesListSchema:
+    async def get_message_list(self, chat_id: UUID) -> MessageListSchema:
         """Получить список сообщений в диалоге с chat_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
@@ -115,7 +115,7 @@ class PostgresDBProvider:
                     detail="Dialogue with given chat_id not found"
                 )
             messages = dialogue.messages
-            return MessagesListSchema(messages=messages)
+            return MessageListSchema(messages=messages)
 
 
     async def create_message(self, chat_id: UUID, message_data: RawMessageSchema) -> MessageSchema:
@@ -148,7 +148,7 @@ class PostgresDBProvider:
             return MessageSchema.model_validate(new_message)
 
 
-    async def delete_message_list(self, chat_id: UUID, messages_id_list_to_remove: list[UUID]) -> DeleteMessagesListSchema:
+    async def delete_message_list(self, chat_id: UUID, messages_id_list_to_remove: list[UUID]) -> DeleteMessageListSchema:
         """Удалить сообщение по chat_id и списку message_id"""
         async with self.SessionLocal() as session:
             result = await session.execute(
