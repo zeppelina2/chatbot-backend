@@ -25,7 +25,6 @@ class OllamaLLMProvider:
         )
 
     # метод, работающий с tools
-
     async def generate_completion_with_tools_async(
         self,
         messages: list[Message],
@@ -39,20 +38,15 @@ class OllamaLLMProvider:
             think=True
         )
 
-        print("LLM_PROVIDER_RESPONSE", response)
-        
-        message_from_llm: list[Tool] = []
-        
         if (response.message.tool_calls):
-            for call in response.message.tool_calls:
-                tool_name = call.function.name
-                arguments = call.function.arguments
+            call = response.message.tool_calls[0]
+            tool_name = call.function.name
+            arguments = call.function.arguments
 
-                message_from_llm.append(Tool(
-                    tool_name,
-                    arguments
-                ))
+            return Tool(tool_name=tool_name, arguments=arguments)
+        else:
+            return Message(content=response.message.content, role=Role.ASSISTANT) 
 
-        print("MESSAGE_FROM_LLM", message_from_llm)
-
-        return message_from_llm
+    @staticmethod # это значит, что self не нужен
+    def tool_to_str(tool: Tool) -> str:
+        return tool.model_dump_json(indent=2, ensure_ascii=False)

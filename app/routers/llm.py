@@ -8,7 +8,7 @@ from app.providers.init_providers import BOT
 router = APIRouter()
 
 
-@router.post("/llm/generate_with_tools", response_model=MessageListSchema)
+@router.post("/llm/generate_with_tools", response_model=Message)
 async def generate_message_with_tools(
         chat_id: UUID, message: str = Body(..., embed=True)):
     """Отправить сообщения из диалога с chat_id в LLM с tools и получить сгенерированный ответ"""
@@ -17,6 +17,7 @@ async def generate_message_with_tools(
     message_list: MessageListSchema = await BOT.get_message_list(chat_id)
     messages = message_list.to_raw_messages()
 
-    llm_response = await BOT.process_messages(messages)
+    async for new_message in BOT.process_messages(messages):
+        await BOT.create_message(chat_id, new_message)
 
-    return llm_response
+    return new_message

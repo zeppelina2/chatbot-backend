@@ -1,6 +1,5 @@
-from datetime import datetime
-from uuid import UUID, uuid4
-from collections.abc import Asyncgenerator
+from uuid import UUID
+from collections.abc import AsyncGenerator
 
 import yaml
 
@@ -12,7 +11,8 @@ from app.schemas import (
     DeleteMessageListSchema,
     Role,
     DialogueSchema,
-    DialogueListSchema
+    DialogueListSchema,
+    Tool
 )
 
 
@@ -34,7 +34,7 @@ class Bot:
         # максимальное количество обращений к инструментам
         # (всего, не каждого по отдельности)
         max_steps=5
-    ) -> Asyncgenerator[Message]:
+    ) -> AsyncGenerator[Message]:
 
         # контекст для модели
         messages_for_llm = [
@@ -42,15 +42,9 @@ class Bot:
             *messages
         ]
 
-        # счетчик шагов
-        step = 0
-
         try:
-            while step < max_steps:
-                step += 1
-
-                print("step", step)
-
+            for i in range(max_steps):
+                print("STEP", i)
                 # обращение к LLM
                 # на первом шаге на вход передаем сообщения из диалога
                 # на последующих шагах передаем сообщения из: диалога, tools,
@@ -59,54 +53,41 @@ class Bot:
                     messages_for_llm,
                     self.tools
                 )
-
-                # добавляем ответ ассистента:
-                # в контекст
-                messages_for_llm.append(response.message)
-                yield response.message
-
-                # если инструментов нет, то прерываем цикл
-                if not response.message.tool_calls:
-                    return
-
-                # в ответ ollama вернет json. если нужно обращение к tool, то в json будет tool_calls.
-                # если в сообщении от llm есть tool_calls, то обращаемся к инструментам
-                # (их может быть несколько, обработаем их в цикле)
-                for call in response.message.tool_calls:
-                    tool_name = call.function.name
-                    args = call.function.arguments
-                    tool_func = self.tools.get(tool_name)
-
+                
+                if (isinstance(response, Tool)):
+                    # new_message = Message(role=Role.ASSISTANT, content=self.llm_provider.tool_to_str(response))
+                    # yield new_message
+                    # messages_for_llm.append(new_message)
+                    tool_func = self.tools.get(response.tool_name)
                     # обращаемся к инструменту
                     if not tool_func:
-                        result = f"Unknown tool: {tool_name}"
-                    else:
-                        try:
-                            result = tool_func(**args)
-                        except Exception as tool_error:
-                            result = f"Tool error: {str(tool_error)}"
-
+                        raise Exception(f"Unknown tool: {response.tool_name}")
+                    result = tool_func(**response.arguments)                    
                     tool_content = str(result)
-
-                    # добавляем ответ инструмента:
-                    # в контекст
-                    messages_for_llm.append({
-                        "role": Role.TOOL,
-                        "tool_name": tool_name,
-                        "content": tool_content
-                    })
-
-            return MessageListSchema(messages=messages_for_base)
+                    new_message = Message(role=Role.TOOL, content=tool_content)
+                    yield new_message
+                    messages_for_llm.append(new_message)
+                
+                if (isinstance(response, Message)):
+                    yield response
+                    return
+                
+            # сообщение, что llm вышла из цикла по max_steps, а не по ответу
+            return Message(role=Role.ASSISTANT, content="Не могу понять ваш запрос. Пожалуйста, попробуйте перефразировать ваш запрос.")
 
         except Exception as e:
+            print("ERROR_FROM_BOT", e)
             raise Exception(f"Ошибка при запросе к LLM: {str(e)}") from e
+
 
     async def get_message_list(self, chat_id: UUID) -> MessageListSchema:
         messages = await self.db_provider.get_message_list(chat_id)
         return messages
 
-    async def create_message(self, chat_id: UUID,
-                             message: Message) -> MessageSchemaBD:
+    async def create_message(
+        self, chat_id: UUID,
+        message: Message
+    ) -> MessageSchemaBD:
         new_message = await self.db_provider.create_message(chat_id, message)
         return new_message
 
