@@ -38,6 +38,7 @@ class OllamaLLMProvider:
             think=True
         )
 
+        # обрабатываем ответ с tools
         if (response.message.tool_calls):
             call = response.message.tool_calls[0]
             tool_name = call.function.name
@@ -45,8 +46,10 @@ class OllamaLLMProvider:
 
             return Tool(tool_name=tool_name, arguments=arguments)
         else:
+            # обрабатываем ответ с message
             return Message(content=response.message.content, role=Role.ASSISTANT) 
 
+    # функция берет json и делает из него строку
     @staticmethod # это значит, что self не нужен
     def tool_to_str(tool: Tool) -> str:
         return tool.model_dump_json(indent=2, ensure_ascii=False)

@@ -44,16 +44,13 @@ class Bot:
 
         try:
             for i in range(max_steps):
-                print("STEP", i)
                 # обращение к LLM
-                # на первом шаге на вход передаем сообщения из диалога
-                # на последующих шагах передаем сообщения из: диалога, tools,
-                # системы
                 response = await self.llm_provider.generate_completion_with_tools_async(
                     messages_for_llm,
                     self.tools
                 )
-                
+
+                # если в ответе tools
                 if (isinstance(response, Tool)):
                     # new_message = Message(role=Role.ASSISTANT, content=self.llm_provider.tool_to_str(response))
                     # yield new_message
@@ -65,18 +62,20 @@ class Bot:
                     result = tool_func(**response.arguments)                    
                     tool_content = str(result)
                     new_message = Message(role=Role.TOOL, content=tool_content)
+                    # выбрасываем сообщение от tools, оно будет записано в базу
                     yield new_message
                     messages_for_llm.append(new_message)
-                
+
+                # если в ответе сообщение
                 if (isinstance(response, Message)):
+                    # выбрасываем сообщение от LLM, оно будет записано в базу
                     yield response
                     return
                 
-            # сообщение, что llm вышла из цикла по max_steps, а не по ответу
+            # сообщение, что LLM вышла из цикла по max_steps, а не по ответу
             return Message(role=Role.ASSISTANT, content="Не могу понять ваш запрос. Пожалуйста, попробуйте перефразировать ваш запрос.")
 
         except Exception as e:
-            print("ERROR_FROM_BOT", e)
             raise Exception(f"Ошибка при запросе к LLM: {str(e)}") from e
 
 
@@ -92,7 +91,10 @@ class Bot:
         return new_message
 
     async def delete_message_list(
-            self, chat_id: UUID, message_list: list[UUID]) -> DeleteMessageListSchema:
+        self,
+        chat_id: UUID,
+        message_list: list[UUID]
+    ) -> DeleteMessageListSchema:
         response = await self.db_provider.delete_message_list(chat_id, message_list)
         return response
 
@@ -105,7 +107,10 @@ class Bot:
         return new_dialogue
 
     async def change_dialogue_name(
-            self, chat_id: UUID, name: str) -> DialogueSchema:
+        self,
+        chat_id: UUID,
+        name: str
+    ) -> DialogueSchema:
         edit_dialogue = await self.db_provider.change_dialogue_name(chat_id, name)
         return edit_dialogue
 
