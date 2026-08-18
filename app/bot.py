@@ -73,7 +73,8 @@ class Bot:
                     return
                 
             # сообщение, что LLM вышла из цикла по max_steps, а не по ответу
-            return Message(role=Role.ASSISTANT, content="Не могу понять ваш запрос. Пожалуйста, попробуйте перефразировать ваш запрос.")
+            yield Message(role=Role.ASSISTANT, content="Не могу понять ваш запрос. Пожалуйста, попробуйте перефразировать ваш запрос.")
+            return
 
         except Exception as e:
             raise Exception(f"Ошибка при запросе к LLM: {str(e)}") from e
