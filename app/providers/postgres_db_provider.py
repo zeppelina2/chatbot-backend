@@ -1,13 +1,14 @@
 from datetime import datetime
-from sqlalchemy import select
+from sqlalchemy import select, update, delete
 from uuid import UUID, uuid4
 from fastapi import HTTPException, status
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from app.schemas import (
-    DialogueSchema,
+    DialogueWithMessagesSchema,
     DialogueListSchema,
+    DialogueSchema,
     Message,
     MessageSchemaBD,
     MessageListSchema,
@@ -22,8 +23,7 @@ class PostgresDBProvider:
     """Провайдер для работы с базой данных PostgreSQL"""
 
     def __init__(self, database_url: str):
-        self.engine = create_async_engine(
-            database_url, echo=False, future=True)
+        self.engine = create_async_engine(database_url, echo=False, future=True)
         self.SessionLocal = sessionmaker(
             bind=self.engine,
             class_=AsyncSession,
@@ -33,28 +33,51 @@ class PostgresDBProvider:
 
     async def init_db(self):
         """Создать таблицы, если их нет"""
+
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
 
     async def get_dialogue_list(self, user_id: UUID) -> DialogueListSchema:
         """Получить список диалогов по user_id"""
+
         async with self.SessionLocal() as session:
             result = await session.execute(
-                select(DialoguePSQL).where(DialoguePSQL.user_id == user_id)
+                select(
+                    DialoguePSQL.chat_id,
+                    DialoguePSQL.user_id,
+                    DialoguePSQL.name,
+                    DialoguePSQL.created_at,
+                    DialoguePSQL.updated_at,
+                )
+                .where(DialoguePSQL.user_id == user_id)
+                .order_by(DialoguePSQL.updated_at.desc())
             )
-            dialogues = result.scalars().all()
+
+            dialogues = result.all()
+
             return DialogueListSchema(
                 dialogues=[
-                    DialogueSchema.model_validate(dialogue) for dialogue in dialogues
+                    DialogueSchema(
+                        chat_id=dialogue.chat_id,
+                        user_id=dialogue.user_id,
+                        name=dialogue.name,
+                        created_at=dialogue.created_at,
+                        updated_at=dialogue.updated_at,
+                    )
+                    for dialogue in dialogues
                 ]
             )
 
 
-    async def create_dialogue(self, user_id: UUID) -> DialogueSchema:
+    async def create_dialogue(
+        self,
+        user_id: UUID
+    ) -> DialogueWithMessagesSchema:
         """Создать диалог по user_id"""
+
         async with self.SessionLocal() as session:
-            chat_id = str(uuid4())
+            chat_id = uuid4()
             dialogue = DialoguePSQL(
                 chat_id=chat_id,
                 user_id=user_id,
@@ -62,62 +85,106 @@ class PostgresDBProvider:
                 created_at=datetime.now(),
                 updated_at=datetime.now()
             )
+
             session.add(dialogue)
+
             await session.commit()
             await session.refresh(dialogue)
-            return DialogueSchema.model_validate(dialogue)
+
+            return DialogueWithMessagesSchema(
+                chat_id=dialogue.chat_id,
+                user_id=dialogue.user_id,
+                messages=[],
+                name=dialogue.name,
+                created_at=dialogue.created_at,
+                updated_at=dialogue.updated_at,
+            )
 
 
-    async def change_dialogue_name(self, chat_id, name) -> DialogueSchema:
-        """Изменить диалог по chat_id"""
+    async def change_dialogue_name(
+        self,
+        chat_id,
+        name
+    ) -> DialogueSchema:
+        """Изменить имя диалога по chat_id"""
+
         async with self.SessionLocal() as session:
             result = await session.execute(
-                select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
+                update(DialoguePSQL)
+                .where(DialoguePSQL.chat_id == chat_id)
+                .values(
+                    name=name,
+                    updated_at=datetime.now(),
+                )
+                .returning(
+                    DialoguePSQL.chat_id,
+                    DialoguePSQL.user_id,
+                    DialoguePSQL.name,
+                    DialoguePSQL.created_at,
+                    DialoguePSQL.updated_at,
+                )
             )
-            dialogue = result.scalar_one_or_none()
+
+            dialogue = result.one_or_none()
+
             if not dialogue:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
                 )
-            dialogue.name = name
-            dialogue.updated_at = datetime.now()
 
             await session.commit()
-            await session.refresh(dialogue)
-            return DialogueSchema.model_validate(dialogue)
+
+            return DialogueSchema(
+                chat_id=dialogue.chat_id,
+                user_id=dialogue.user_id,
+                name=dialogue.name,
+                created_at=dialogue.created_at,
+                updated_at=dialogue.updated_at,
+            )
 
 
-    async def delete_dialogue(self, chat_id: UUID):
+    async def delete_dialogue(self, chat_id: UUID) -> None:
         """Удалить диалог по chat_id"""
+
         async with self.SessionLocal() as session:
             result = await session.execute(
-                select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
+                delete(DialoguePSQL)
+                .where(DialoguePSQL.chat_id == chat_id)
             )
-            dialogue = result.scalar_one_or_none()
-            if not dialogue:
+
+            if result.rowcount == 0: # если удаление успешно, то rowcount будет равен 1
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
                 )
-            await session.delete(dialogue)
+
             await session.commit()
 
 
     async def get_message_list(self, chat_id: UUID) -> MessageListSchema:
         """Получить список сообщений в диалоге с chat_id"""
+
         async with self.SessionLocal() as session:
             result = await session.execute(
-                select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
+                select(DialoguePSQL.messages)
+                .where(DialoguePSQL.chat_id == chat_id)
             )
-            dialogue = result.scalar_one_or_none()
-            if not dialogue:
+
+            messages = result.scalar_one_or_none()
+
+            if messages is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
                 )
-            messages = dialogue.messages
-            return MessageListSchema(messages=messages)
+
+            return MessageListSchema(
+                messages=[
+                    MessageSchemaBD.model_validate(message)
+                    for message in messages
+                ]
+            )
 
 
     async def create_message(
@@ -126,31 +193,44 @@ class PostgresDBProvider:
         message_data: Message
     ) -> MessageSchemaBD:
         """Создать сообщение в диалоге с chat_id"""
-        async with self.SessionLocal() as session:
-            message_id = str(uuid4())
-            result = await session.execute(
-                select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
-            )
-            dialogue = result.scalar_one_or_none()
 
-            if not dialogue:
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(DialoguePSQL.messages)
+                .where(DialoguePSQL.chat_id == chat_id)
+            )
+
+            messages = result.scalar_one_or_none()
+
+            if messages is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
                 )
 
             now = datetime.now().isoformat()
+
             new_message = {
-                "message_id": message_id,
+                "message_id": str(uuid4()),
                 "content": message_data.content,
                 "created_at": now,
                 "updated_at": now,
                 "role": message_data.role
             }
-            dialogue.messages.append(new_message)
+
+            messages.append(new_message)
+            
+            await session.execute(
+                update(DialoguePSQL)
+                .where(DialoguePSQL.chat_id == chat_id)
+                .values(
+                    messages=messages,
+                    updated_at=datetime.now(),
+                )
+            )
 
             await session.commit()
-            await session.refresh(dialogue)
+
             return MessageSchemaBD.model_validate(new_message)
 
 
@@ -160,21 +240,23 @@ class PostgresDBProvider:
         messages_id_list_to_remove: list[UUID]
     ) -> DeleteMessageListSchema:
         """Удалить сообщение по chat_id и списку message_id"""
+
         async with self.SessionLocal() as session:
             result = await session.execute(
-                select(DialoguePSQL).where(DialoguePSQL.chat_id == chat_id)
+                select(DialoguePSQL.messages)
+                .where(DialoguePSQL.chat_id == chat_id)
             )
-            dialogue = result.scalar_one_or_none()
 
-            if not dialogue:
+            messages = result.scalar_one_or_none()
+
+            if messages is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
                 )
-            messages = dialogue.messages or []
 
             # Преобразуем входящий список UUID в список строк
-            ids_to_remove = {str(u) for u in messages_id_list_to_remove}
+            ids_to_remove = { str(message_id) for message_id in messages_id_list_to_remove }
 
             remaining_messages = []
             removed_ids = set()
@@ -194,7 +276,15 @@ class PostgresDBProvider:
             not_found = list(ids_to_remove - removed_ids)
 
             # Удаление сообщений
-            dialogue.messages = remaining_messages
+            await session.execute(
+                update(DialoguePSQL)
+                .where(DialoguePSQL.chat_id == chat_id)
+                .values(
+                    messages=remaining_messages,
+                    updated_at=datetime.now(),
+                )
+            )
+
             await session.commit()
 
-            return {"delete": deleted, "not_found": not_found}
+            return { "delete": deleted, "not_found": not_found }

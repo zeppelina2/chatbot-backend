@@ -1,6 +1,5 @@
 from typing import Any
 from ollama import AsyncClient
-from uuid import uuid4
 
 from app.schemas import Message, Role, Tool
 

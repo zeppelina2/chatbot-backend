@@ -10,6 +10,7 @@ from app.schemas import (
     Message,
     DeleteMessageListSchema,
     Role,
+    DialogueWithMessagesSchema,
     DialogueSchema,
     DialogueListSchema,
     Tool
@@ -28,6 +29,7 @@ class Bot:
             "markdown_search_text": markdown_search_text,
         }
 
+
     async def process_messages(
         self,
         messages: list[Message],
@@ -38,7 +40,9 @@ class Bot:
 
         # контекст для модели
         messages_for_llm = [
-            Message(role=Role.SYSTEM, content=self.prompts["system_ecumene_prompt"]),
+            Message(
+                role=Role.SYSTEM,
+                content=self.prompts["system_ecumene_prompt"]),
             *messages
         ]
 
@@ -59,7 +63,7 @@ class Bot:
                     # обращаемся к инструменту
                     if not tool_func:
                         raise Exception(f"Unknown tool: {response.tool_name}")
-                    result = tool_func(**response.arguments)                    
+                    result = tool_func(**response.arguments)
                     tool_content = str(result)
                     new_message = Message(role=Role.TOOL, content=tool_content)
                     # выбрасываем сообщение от tools, оно будет записано в базу
@@ -71,7 +75,7 @@ class Bot:
                     # выбрасываем сообщение от LLM, оно будет записано в базу
                     yield response
                     return
-                
+
             # сообщение, что LLM вышла из цикла по max_steps, а не по ответу
             yield Message(role=Role.ASSISTANT, content="Не могу понять ваш запрос. Пожалуйста, попробуйте перефразировать ваш запрос.")
             return
@@ -80,9 +84,12 @@ class Bot:
             raise Exception(f"Ошибка при запросе к LLM: {str(e)}") from e
 
 
+    # =================== CRUD =================== #
+
     async def get_message_list(self, chat_id: UUID) -> MessageListSchema:
         messages = await self.db_provider.get_message_list(chat_id)
         return messages
+
 
     async def create_message(
         self, chat_id: UUID,
@@ -90,6 +97,7 @@ class Bot:
     ) -> MessageSchemaBD:
         new_message = await self.db_provider.create_message(chat_id, message)
         return new_message
+
 
     async def delete_message_list(
         self,
@@ -99,13 +107,22 @@ class Bot:
         response = await self.db_provider.delete_message_list(chat_id, message_list)
         return response
 
-    async def get_dialogue_list(self, user_id: UUID) -> DialogueListSchema:
+
+    async def get_dialogue_list(
+        self,
+        user_id: UUID
+    ) -> DialogueListSchema:
         dialogues = await self.db_provider.get_dialogue_list(user_id)
         return dialogues
 
-    async def create_dialogue(self, user_id: UUID) -> DialogueSchema:
+
+    async def create_dialogue(
+        self,
+        user_id: UUID
+    ) -> DialogueWithMessagesSchema:
         new_dialogue = await self.db_provider.create_dialogue(user_id)
         return new_dialogue
+
 
     async def change_dialogue_name(
         self,
@@ -115,5 +132,6 @@ class Bot:
         edit_dialogue = await self.db_provider.change_dialogue_name(chat_id, name)
         return edit_dialogue
 
-    async def delete_dialogue(self, chat_id: UUID):
+
+    async def delete_dialogue(self, chat_id: UUID) -> None:
         await self.db_provider.delete_dialogue(chat_id)

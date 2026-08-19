@@ -53,7 +53,7 @@ class DeleteMessageListSchema(BaseModel):
     not_found: list[str]
 
 
-class DialogueSchema(BaseModel):
+class DialogueWithMessagesSchema(BaseModel):
     """Схема диалога"""
     chat_id: UUID
     user_id: UUID
@@ -66,8 +66,25 @@ class DialogueSchema(BaseModel):
         from_attributes = True
 
 
-class DialogueListSchema(BaseModel):
+class DialogueWithMessagesListSchema(BaseModel):
     """Схема списка диалога"""
+    dialogues: list[DialogueWithMessagesSchema]
+
+
+class DialogueSchema(BaseModel):
+    """Схема диалога без сообщений"""
+    chat_id: UUID
+    user_id: UUID
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DialogueListSchema(BaseModel):
+    """Схема списка диалога без сообщений"""
     dialogues: list[DialogueSchema]
 
 
