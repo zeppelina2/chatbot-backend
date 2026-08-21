@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body
 from uuid import UUID
 
-from app.schemas import Role, Message, MessageListSchema
+from app.schemas import Role, Message, MessageListSchema, DialogueSchema
 from app.providers.init_providers import BOT
 
 
@@ -25,3 +25,16 @@ async def generate_message_with_tools(
 
     # вернем последнее сообщение от LLM
     return new_message
+
+
+@router.put("/llm/generate_dialogue_name/{chat_id}", response_model=DialogueSchema)
+async def generate_dialogue_name(
+    chat_id: UUID,
+    message: str = Body(..., embed=True)
+):
+    """Сгенерировать имя диалога по chat_id и первому сообщению пользователя"""
+    new_dialogue_name = await BOT.generate_dialogue_name(message)
+    print("new_dialogue_name: ", new_dialogue_name)
+    edit_dialogue = await BOT.change_dialogue_name(chat_id, new_dialogue_name)
+    
+    return edit_dialogue

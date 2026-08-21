@@ -1,6 +1,5 @@
 from uuid import UUID
 from collections.abc import AsyncGenerator
-
 import yaml
 
 from app.tools.search_tool import markdown_search_text
@@ -35,7 +34,7 @@ class Bot:
         messages: list[Message],
         # максимальное количество обращений к инструментам
         # (всего, не каждого по отдельности)
-        max_steps=5
+        max_steps=10
     ) -> AsyncGenerator[Message]:
 
         # контекст для модели
@@ -116,6 +115,14 @@ class Bot:
         return dialogues
 
 
+    async def get_dialogue(
+        self,
+        chat_id: UUID
+    ) -> DialogueListSchema:
+        dialogues = await self.db_provider.get_dialogue(chat_id)
+        return dialogues
+
+
     async def create_dialogue(
         self,
         user_id: UUID
@@ -131,6 +138,11 @@ class Bot:
     ) -> DialogueSchema:
         edit_dialogue = await self.db_provider.change_dialogue_name(chat_id, name)
         return edit_dialogue
+
+
+    async def generate_dialogue_name(self, message: str) -> DialogueListSchema:
+        new_dialogue_name = await self.llm_provider.generate_dialogue_name_async(message)
+        return new_dialogue_name
 
 
     async def delete_dialogue(self, chat_id: UUID) -> None:

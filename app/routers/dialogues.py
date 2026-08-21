@@ -14,6 +14,13 @@ async def get_dialogue_list(user_id: UUID):
     return dialogues
 
 
+@router.get("/dialogue", response_model=DialogueSchema)
+async def get_dialogue(chat_id: UUID):
+    """Получить диалог по chat_id"""
+    dialogue = await BOT.get_dialogue(chat_id)
+    return dialogue
+
+
 @router.post("/dialogues", response_model=DialogueWithMessagesSchema)
 async def create_dialogue(user_id: UUID):
     """Создать новый диалог для user_id"""

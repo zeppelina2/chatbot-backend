@@ -58,16 +58,30 @@ class PostgresDBProvider:
 
             return DialogueListSchema(
                 dialogues=[
-                    DialogueSchema(
-                        chat_id=dialogue.chat_id,
-                        user_id=dialogue.user_id,
-                        name=dialogue.name,
-                        created_at=dialogue.created_at,
-                        updated_at=dialogue.updated_at,
-                    )
+                    DialogueSchema.model_validate(dialogue)
                     for dialogue in dialogues
                 ]
             )
+
+
+    async def get_dialogue(self, chat_id: UUID) -> DialogueListSchema:
+        """Получить диалог по chat_id"""
+
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(
+                    DialoguePSQL.chat_id,
+                    DialoguePSQL.user_id,
+                    DialoguePSQL.name,
+                    DialoguePSQL.created_at,
+                    DialoguePSQL.updated_at,
+                )
+                .where(DialoguePSQL.chat_id == chat_id)
+            )
+
+            dialogue = result.one_or_none()
+
+            return DialogueSchema.model_validate(dialogue)
 
 
     async def create_dialogue(
@@ -135,13 +149,7 @@ class PostgresDBProvider:
 
             await session.commit()
 
-            return DialogueSchema(
-                chat_id=dialogue.chat_id,
-                user_id=dialogue.user_id,
-                name=dialogue.name,
-                created_at=dialogue.created_at,
-                updated_at=dialogue.updated_at,
-            )
+            return DialogueSchema.model_validate(dialogue)
 
 
     async def delete_dialogue(self, chat_id: UUID) -> None:
