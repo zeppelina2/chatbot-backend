@@ -12,7 +12,8 @@ from app.schemas import (
     Message,
     MessageSchemaBD,
     MessageListSchema,
-    DeleteMessageListSchema
+    DeleteMessageListSchema,
+    Role
 )
 
 # импорты моделей
@@ -191,6 +192,32 @@ class PostgresDBProvider:
                 messages=[
                     MessageSchemaBD.model_validate(message)
                     for message in messages
+                ]
+            )
+
+
+    async def get_message_user_assistant_list(self, chat_id: UUID) -> MessageListSchema:
+        """Получить список сообщений в диалоге с chat_id"""
+
+        async with self.SessionLocal() as session:
+            result = await session.execute(
+                select(DialoguePSQL.messages)
+                .where(DialoguePSQL.chat_id == chat_id)
+            )
+
+            messages = result.scalar_one_or_none()
+
+            if messages is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Dialogue with given chat_id not found"
+                )
+
+            return MessageListSchema(
+                messages=[
+                    MessageSchemaBD.model_validate(message)
+                    for message in messages
+                    if message["role"] in (Role.USER, Role.ASSISTANT)
                 ]
             )
 

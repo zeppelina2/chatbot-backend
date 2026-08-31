@@ -19,6 +19,13 @@ async def get_message_list(chat_id: UUID):
     return messages
 
 
+@router.get("/messages/{chat_id}/user-assistant", response_model=MessageListSchema)
+async def get_message_list(chat_id: UUID):
+    """Получить список сообщений от user и assistant в диалоге с chat_id"""
+    messages = await BOT.get_message_user_assistant_list(chat_id)
+    return messages
+
+
 @router.post("/messages/{chat_id}", response_model=MessageSchemaBD)
 async def create_message(chat_id: UUID, message: Message):
     """Создать новое сообщение в диалоге с chat_id"""

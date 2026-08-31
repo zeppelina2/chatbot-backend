@@ -90,6 +90,11 @@ class Bot:
         return messages
 
 
+    async def get_message_user_assistant_list(self, chat_id: UUID) -> MessageListSchema:
+        messages = await self.db_provider.get_message_user_assistant_list(chat_id)
+        return messages
+
+
     async def create_message(
         self, chat_id: UUID,
         message: Message
