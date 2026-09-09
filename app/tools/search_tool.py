@@ -1,6 +1,64 @@
 import re
 from pathlib import Path
 
+
+MAX_CHUNK_SIZE = 1000
+MAX_RESULTS = 10
+# границы конца предложения
+SENTENCE_ENDINGS = (".", "!", "?", "\n", "...", "…")
+
+
+def expand_chunk_to_sentence_boundaries(
+    text: str,
+    left: int,
+    right: int,
+    previous_chunk_end: int,
+) -> tuple[int, int]:
+    """
+    Расширяет чанк до ближайшей границы предложения.
+
+    Слева ищет предыдущие:
+    - точку, многоточие;
+    - восклицательный и вопросительный знаки;
+    - перенос строки.
+
+    Справа ищет следующие такие же символы.
+    """
+
+    # Ищем ближайший разделитель перед левой границей.
+    previous_endings = [
+        text.rfind(ending, previous_chunk_end, left + 1)
+        for ending in SENTENCE_ENDINGS
+    ]
+
+    nearest_previous_ending = max(previous_endings)
+
+    if nearest_previous_ending != -1:
+        expanded_left = nearest_previous_ending + 1
+    else:
+        expanded_left = previous_chunk_end
+
+    # Новый чанк не должен пересекаться с предыдущим.
+    expanded_left = max(
+        expanded_left,
+        previous_chunk_end,
+    )
+
+    # Ищем ближайший разделитель после правой границы.
+    next_endings = [
+        position
+        for ending in SENTENCE_ENDINGS
+        if (position := text.find(ending, right)) != -1
+    ]
+
+    if next_endings:
+        expanded_right = min(next_endings) + 1
+    else:
+        expanded_right = len(text)
+
+    return expanded_left, expanded_right
+
+
 def markdown_search_text(
     search_str: str,
     chunk_size: int = 100,
@@ -9,10 +67,11 @@ def markdown_search_text(
     regex: str = "",
     offset: int = 0,
 ) -> list[str]:
-    """
-    Ищет текст в Markdown-файле и возвращает не более 10 чанков.
+    f"""
+    Ищет текст в Markdown-файле и возвращает не более {MAX_RESULTS} непересекающихся чанков.
 
     В строке поиска имеет смысл использовать stemming.
+    Границы чанка расширяются до полного предложения или строки.
 
     Режимы поиска:
     - По умолчанию ищет полное вхождение search_str в текст.
@@ -23,7 +82,7 @@ def markdown_search_text(
 
     Пагинация:
     - offset — количество найденных совпадений, которые нужно пропустить.
-    - Возвращается не более 10 совпадений после offset.
+    - Возвращается не более {MAX_RESULTS} совпадений после offset.
 
     Размер чанка:
     - chunk_size символов до совпадения;
@@ -31,6 +90,8 @@ def markdown_search_text(
     - chunk_size символов после совпадения;
     - максимальный chunk_size — 1000.
     """
+    
+    print("chunk_size: ", chunk_size)
 
     md_path = Path("app/resources/ecumene.md")
 
@@ -38,8 +99,9 @@ def markdown_search_text(
     if not md_path.is_file():
         return []
 
-    if not 0 <= chunk_size <= 1000:
-        raise ValueError("chunk_size должен быть в диапазоне от 0 до 1000")
+    # TODO как вернуть ошибку для llm? если делать через raise, то приложение падает
+    # if not 0 <= chunk_size <= MAX_CHUNK_SIZE:
+    #     raise ValueError(f"chunk_size должен быть в диапазоне от 0 до {MAX_CHUNK_SIZE}")
 
     if offset < 0:
         raise ValueError("offset не может быть отрицательным")
@@ -71,26 +133,74 @@ def markdown_search_text(
 
     # получаем мэтчи
     try:
-        matches = re.finditer(pattern, text, flags)
+        compiled_pattern = re.compile(pattern, flags)
     except re.error as error:
         raise ValueError(
             f"Некорректное регулярное выражение: {error}"
         ) from error
 
+    text = md_path.read_text(encoding="utf-8")
+    matches = compiled_pattern.finditer(text)
+    
+    print("compiled_pattern: ", compiled_pattern)
+    print("\n")
+    print("matches: ", matches)
+
     results: list[str] = []
 
+    # граница предыдущего чанка
+    previous_chunk_end = 0
+    # число посчитанных чанков
+    chunk_number = 0
+
     # формируем чанки, на выход только те 10 чанков, которые идут после offset
-    for match_number, match in enumerate(matches):
-        if match_number < offset:
+    for match in matches:
+        # Вхождение уже находится внутри предыдущего чанка.
+        if match.start() < previous_chunk_end:
             continue
 
-        left = max(0, match.start() - chunk_size)
-        right = min(len(text), match.end() + chunk_size)
+        # Сначала формируем приблизительные границы чанка.
+        left = max(
+            previous_chunk_end,
+            match.start() - chunk_size,
+        )
+        right = min(
+            len(text),
+            match.end() + chunk_size,
+        )
 
-        snippet = text[left:right].replace("\n", " ")
+        # Затем расширяем их до границ предложений.
+        left, right = expand_chunk_to_sentence_boundaries(
+            text=text,
+            left=left,
+            right=right,
+            previous_chunk_end=previous_chunk_end,
+        )
+
+        if left >= right:
+            continue
+
+        # Запоминаем границу до обработки offset,
+        # чтобы пагинация также не создавала пересечений.
+        previous_chunk_end = right
+
+        if chunk_number < offset:
+            chunk_number += 1
+            continue
+
+        snippet = re.sub(
+            r"\s+",
+            " ",
+            text[left:right],
+        ).strip()
+        
+        print("snippet: ", snippet)
+        print("\n")
+
         results.append(snippet)
+        chunk_number += 1
 
-        if len(results) == 10:
+        if len(results) == MAX_RESULTS:
             break
 
     return results

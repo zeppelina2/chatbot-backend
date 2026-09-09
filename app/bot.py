@@ -62,6 +62,10 @@ class Bot:
                     # обращаемся к инструменту
                     if not tool_func:
                         raise Exception(f"Unknown tool: {response.tool_name}")
+                    print("ИТЕРАЦИЯ: ", i)
+                    print("\n")
+                    print("response.arguments for TOOL: ", response.arguments)
+                    print("\n")
                     result = tool_func(**response.arguments)
                     tool_content = str(result)
                     new_message = Message(role=Role.TOOL, content=tool_content)
