@@ -1,45 +1,96 @@
+import re
 from pathlib import Path
 
-
-def markdown_search_text(search_str: str, chunk_size: int) -> list[str]:
+def markdown_search_text(
+    search_str: str,
+    chunk_size: int = 100,
+    case_sensitive: bool = False,
+    full_word: bool = False,
+    regex: str = "",
+    offset: int = 0,
+) -> list[str]:
     """
-    Полнотекстовый поиск в файле ищет по полному вхождению search_str.
+    Ищет текст в Markdown-файле и возвращает не более 10 чанков.
+
     В строке поиска имеет смысл использовать stemming.
-    Например, если нужно найти все про "гетайров", то search_str лучше указывать "гетайр".
-    Функция возвращает массив срезов (chunk_size символов до + search_str + chunk_size символов после).
-    """
-    
-    MD_PATH = Path("app/resources/ecumene.md")
 
-    if not MD_PATH.exists():
-        print("НЕ НАШЕЛ ПУТЬ")
+    Режимы поиска:
+    - По умолчанию ищет полное вхождение search_str в текст.
+    - При full_word=True ищет search_str как отдельное слово.
+    - Если передан regex, поиск выполняется по регулярному выражению,
+      а search_str и full_word игнорируются.
+    - При case_sensitive=True учитывает регистр.
+
+    Пагинация:
+    - offset — количество найденных совпадений, которые нужно пропустить.
+    - Возвращается не более 10 совпадений после offset.
+
+    Размер чанка:
+    - chunk_size символов до совпадения;
+    - найденный текст;
+    - chunk_size символов после совпадения;
+    - максимальный chunk_size — 1000.
+    """
+
+    md_path = Path("app/resources/ecumene.md")
+
+    # Проверяем крайние случаи:
+    if not md_path.is_file():
         return []
 
-    text = MD_PATH.read_text(encoding="utf-8")
-    # список сниппетов, включающих искомую строку search_str
-    results = []
+    if not 0 <= chunk_size <= 1000:
+        raise ValueError("chunk_size должен быть в диапазоне от 0 до 1000")
 
-    search_len = len(search_str)
-    # индекс начала сниппета в документе
-    start = 0
+    if offset < 0:
+        raise ValueError("offset не может быть отрицательным")
 
-    # делаем поиск регистронезависимым
-    text_lower = text.casefold()
-    search_lower = search_str.casefold()
+    if not regex and not search_str:
+        raise ValueError("Необходимо передать search_str или regex")
 
-    while True:
-        index = text_lower.find(search_lower, start)
+    # Если проверки прошли, работаем с текстом:
+    text = md_path.read_text(encoding="utf-8")
 
-        if index == -1:
-            break
+    # Если указан regex, он имеет приоритет над обычным поиском
+    if regex:
+        pattern = regex
+    else:
+        # Экранируем специальные символы, чтобы search_str
+        # воспринимался как обычный текст, а не как regex
+        escaped_search = re.escape(search_str)
 
-        # границы с учетом начала и конца файла
-        left = max(0, index - chunk_size)
-        right = min(len(text), index + search_len + chunk_size)
+        if full_word:
+            # В отличие от \b, такая проверка лучше показывает намерение:
+            # до и после совпадения не должно быть буквы, цифры
+            # или символа подчёркивания
+            pattern = rf"(?<!\w){escaped_search}(?!\w)"
+        else:
+            pattern = escaped_search
+
+    # Учет регистра, если указан case_sensitive
+    flags = 0 if case_sensitive else re.IGNORECASE
+
+    # получаем мэтчи
+    try:
+        matches = re.finditer(pattern, text, flags)
+    except re.error as error:
+        raise ValueError(
+            f"Некорректное регулярное выражение: {error}"
+        ) from error
+
+    results: list[str] = []
+
+    # формируем чанки, на выход только те 10 чанков, которые идут после offset
+    for match_number, match in enumerate(matches):
+        if match_number < offset:
+            continue
+
+        left = max(0, match.start() - chunk_size)
+        right = min(len(text), match.end() + chunk_size)
 
         snippet = text[left:right].replace("\n", " ")
         results.append(snippet)
 
-        start = index + search_len  # двигаемся дальше
+        if len(results) == 10:
+            break
 
     return results
