@@ -1,8 +1,8 @@
 from uuid import UUID
 from collections.abc import AsyncGenerator
 import yaml
+from functools import partial
 
-from app.tools.search_tool import markdown_search_text
 from app.schemas import (
     MessageSchemaBD,
     MessageListSchema,
@@ -15,18 +15,87 @@ from app.schemas import (
     Tool
 )
 
+from app.tools.chunking_md_file import create_knowlege_library_from_markdown
+from app.tools.search_chunks_by_paths_tool import search_chunks_by_paths, ChunkSearchResult
+from app.tools.search_paths_by_word_tool import search_chunk_paths_by_word
+
 
 class Bot:
-    def __init__(self, llm_provider, db_provider):
+    def __init__(self, llm_provider, db_provider, doc_path_list):
         self.llm_provider = llm_provider
         self.db_provider = db_provider
+
+        # база знаний
+        self.knowlege_library, headings_tree = create_knowlege_library_from_markdown(doc_path_list)
+        
         with open("app/prompts.yaml") as file:
             self.prompts = yaml.safe_load(file)["prompts"]
 
+        # в системный промпт добавим дерево заголовков базы знаний
+        self.prompts["system_ecumene_prompt"] = self.prompts["system_ecumene_prompt"].replace(
+            "{headings_tree}",
+            headings_tree,
+        )
+        
+        print("self.prompts: ", self.prompts)
+
         # список инструментов
         self.tools = {
-            "markdown_search_text": markdown_search_text,
+            "search_chunks_by_paths": self.search_chunks_by_paths,
+            "search_chunk_paths_by_word": self.search_chunk_paths_by_word,
         }
+
+
+    def search_chunks_by_paths(self, paths: list[list[str]]) -> ChunkSearchResult:
+        """
+        Получить чанки по точному совпадению полных путей и пути не вместившихся чанков.
+        Суммарный контент возвращаемых чанков 15000.
+
+        Каждый путь содержит заголовки с символами # и номер
+        части строкой в последнем элементе.
+
+        Пример:
+        [["#История", "##Анатийские войны", "2"]]
+
+        Результат следует порядку запрошенных путей.
+        Неизвестные пути пропускаются, повторные пути игнорируются.
+        Если одному пути соответствуют несколько чанков,
+        возвращаются все они в порядке исходного документа.
+        Чанки, не помещающиеся в оставшийся лимит, пропускаются.
+        Содержимое чанков не обрезается.
+        """
+        return search_chunks_by_paths(
+            knowlege_library=self.knowlege_library,
+            paths=paths,
+        )
+
+
+    def search_chunk_paths_by_word(
+        self,
+        search_str: str = "",
+        full_word: bool = False,
+        case_sensitive: bool = False,
+        regex: str = "",
+    ) -> list[list[str]]:
+        """
+        Найти пути чанков по тексту или регулярному выражению.
+    
+        search_str: строка для поиска.
+        regex: непустое выражение имеет приоритет над search_str.
+        full_word: запрещает соседние буквы, цифры и подчёркивания.
+        case_sensitive: включает учёт регистра.
+
+        Поиск выполняется только по содержимому chunk.
+        Пустой запрос возвращает пустой список.
+        Каждый найденный путь возвращается один раз.
+        """
+        return search_chunk_paths_by_word(
+            knowlege_library=self.knowlege_library,
+            search_str=search_str,
+            full_word=full_word,
+            case_sensitive=case_sensitive,
+            regex=regex,
+        )
 
 
     async def process_messages(
