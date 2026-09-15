@@ -7,7 +7,6 @@ MAX_RESULTS = 10
 # границы конца предложения
 SENTENCE_ENDINGS = (".", "!", "?", "\n", "...", "…")
 
-
 def expand_chunk_to_sentence_boundaries(
     text: str,
     left: int,
