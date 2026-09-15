@@ -36,8 +36,6 @@ class Bot:
             "{headings_tree}",
             headings_tree,
         )
-        
-        print("self.prompts: ", self.prompts)
 
         # список инструментов
         self.tools = {

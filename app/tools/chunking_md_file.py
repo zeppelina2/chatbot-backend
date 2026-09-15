@@ -58,6 +58,27 @@ _BOUNDARIES = (
 )
 
 
+def _clean_heading(title: str) -> str:
+    """Убрать простую Markdown- и HTML-разметку из названия заголовка."""
+    # Убираем необязательные закрывающие #:
+    # "История ###" -> "История"
+    title = re.sub(r"[ \t]+#+[ \t]*$", "", title)
+
+    # Изображения и ссылки: сохраняем только видимый текст.
+    # "![Герб](crest.png)" -> "Герб"
+    # "[Нимерия](https://example.com)" -> "Нимерия"
+    title = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", title)
+
+    # HTML-теги: "<em>История</em>" -> "История"
+    title = re.sub(r"</?[A-Za-z][^>]*>", "", title)
+
+    # Жирный, курсив, зачёркивание и инлайн-код.
+    title = title.translate(str.maketrans("", "", "*_~`"))
+
+    # Убираем лишние пробелы.
+    return re.sub(r"\s+", " ", title).strip()
+
+
 def _sections(text: str) -> Iterator[tuple[list[str], str]]:
     """Каждый заголовок завершает предыдущий раздел, независимо от уровня."""
     stack: list[tuple[int, str]] = []
@@ -77,7 +98,7 @@ def _sections(text: str) -> Iterator[tuple[list[str], str]]:
             yield [label for _, label in stack], "".join(lines)
             lines = []
             level = len(heading[1])
-            title = re.sub(r"[ \t]+#+[ \t]*$", "", heading[2] or "").strip()
+            title = _clean_heading(heading[2] or "")
             while stack and stack[-1][0] >= level:
                 stack.pop()
             stack.append((level, f"{heading[1]}{title}"))
