@@ -56,27 +56,77 @@ _BOUNDARIES = (
     re.compile(r'''[.!?…]+[»”"')\]]*\s+'''),          # Предложения
     re.compile(r"\s+"),                               # Слова
 )
+# Символы пунктуации, которые Markdown позволяет экранировать
+MARKDOWN_ESCAPE_RE = re.compile(
+    r"""\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])"""
+)
+# Простое парное форматирование: жирный, курсив, зачёркивание.
+FORMATTING_RE = re.compile(
+    r"(?<!\*)(\*{1,3})(?!\*)(?=\S)(.+?)(?<=\S)\1(?!\*)"
+    r"|(?<![\w_])(_{1,3})(?!_)(?=\S)(.+?)(?<=\S)\3(?![\w_])"
+    r"|(?<!~)(~~)(?!~)(?=\S)(.+?)(?<=\S)\5(?!~)"
+)
 
 
 def _clean_heading(title: str) -> str:
-    """Убрать простую Markdown- и HTML-разметку из названия заголовка."""
-    # Убираем необязательные закрывающие #:
-    # "История ###" -> "История"
+    """Убрать простую разметку, сохранив буквальные символы."""
+    protected: list[str] = []
+
+    def protect(value: str) -> str:
+        protected.append(value)
+        return f"\x00{len(protected) - 1}\x00"
+
+    # Скрываем экранированные символы до очистки разметки.
+    title = MARKDOWN_ESCAPE_RE.sub(
+        lambda match: protect(match.group(1)),
+        title,
+    )
+
+    # Сохраняем содержимое инлайн-кода без обработки его как разметки.
+    title = re.sub(
+        r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)",
+        lambda match: protect(match.group(2)),
+        title,
+    )
+
+    # Необязательные закрывающие #.
     title = re.sub(r"[ \t]+#+[ \t]*$", "", title)
 
-    # Изображения и ссылки: сохраняем только видимый текст.
-    # "![Герб](crest.png)" -> "Герб"
-    # "[Нимерия](https://example.com)" -> "Нимерия"
+    # Изображения и ссылки: сохраняем видимый текст.
     title = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", title)
 
-    # HTML-теги: "<em>История</em>" -> "История"
+    # HTML-теги.
     title = re.sub(r"</?[A-Za-z][^>]*>", "", title)
 
-    # Жирный, курсив, зачёркивание и инлайн-код.
-    title = title.translate(str.maketrans("", "", "*_~`"))
+    # Удаляем парные маркеры. Повторяем для вложенного форматирования.
+    while True:
+        cleaned = FORMATTING_RE.sub(
+            lambda match: next(
+                value
+                for value in (
+                    match.group(2),
+                    match.group(4),
+                    match.group(6),
+                )
+                if value is not None
+            ),
+            title,
+        )
 
-    # Убираем лишние пробелы.
-    return re.sub(r"\s+", " ", title).strip()
+        if cleaned == title:
+            break
+
+        title = cleaned
+
+    # Восстанавливаем защищённый текст.
+    # Обратный порядок нужен, если инлайн-код содержит другие подстановки.
+    for index in range(len(protected) - 1, -1, -1):
+        title = title.replace(
+            f"\x00{index}\x00",
+            protected[index],
+        )
+
+    return title.strip()
 
 
 def _sections(text: str) -> Iterator[tuple[list[str], str]]:
@@ -176,7 +226,7 @@ def chunk_markdown_with_tree(
         for part, piece in enumerate(parts, start=1):
             chunks.append({
                 "chunk_id": len(chunks) + 1,
-                "path": [*path, str(part)],
+                "path": [*path, f"часть {str(part)}"] if part > 1 else [*path],
                 "part": part,
                 "parts": parts_count,
                 "chunk": piece,
@@ -212,6 +262,8 @@ def create_knowlege_library_from_markdown(
             text=text,
             document_name=document_name,
         )
+        
+        # save_chunks(chunks, f"app/resources/{document_name}.json")
 
         headings_trees.append(headings_tree)
 

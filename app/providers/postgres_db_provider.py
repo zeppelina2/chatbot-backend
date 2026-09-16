@@ -217,7 +217,7 @@ class PostgresDBProvider:
                 messages=[
                     MessageSchemaBD.model_validate(message)
                     for message in messages
-                    if message["role"] in (Role.USER, Role.ASSISTANT)
+                    if message["role"] in (Role.USER, Role.ASSISTANT) and message["content"]
                 ]
             )
 
@@ -250,8 +250,14 @@ class PostgresDBProvider:
                 "content": message_data.content,
                 "created_at": now,
                 "updated_at": now,
-                "role": message_data.role
+                "role": message_data.role,
             }
+            
+            if message_data.tool_calls:
+                new_message["tool_calls"] = message_data.tool_calls
+
+            if message_data.tool_call_id:
+                new_message["tool_call_id"] = message_data.tool_call_id
 
             messages.append(new_message)
             

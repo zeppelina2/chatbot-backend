@@ -1,7 +1,6 @@
 from uuid import UUID
 from collections.abc import AsyncGenerator
 import yaml
-from functools import partial
 
 from app.schemas import (
     MessageSchemaBD,
@@ -15,7 +14,7 @@ from app.schemas import (
     Tool
 )
 
-from app.tools.chunking_md_file import create_knowlege_library_from_markdown
+from app.tools.chunking_md_file import create_knowlege_library_from_markdown, save_chunks
 from app.tools.search_chunks_by_paths_tool import search_chunks_by_paths, ChunkSearchResult
 from app.tools.search_paths_by_word_tool import search_chunk_paths_by_word
 
@@ -27,7 +26,7 @@ class Bot:
 
         # база знаний
         self.knowlege_library, headings_tree = create_knowlege_library_from_markdown(doc_path_list)
-        
+
         with open("app/prompts.yaml") as file:
             self.prompts = yaml.safe_load(file)["prompts"]
 
@@ -49,11 +48,15 @@ class Bot:
         Получить чанки по точному совпадению полных путей и пути не вместившихся чанков.
         Суммарный контент возвращаемых чанков 15000.
 
-        Каждый путь содержит заголовки с символами # и номер
-        части строкой в последнем элементе.
+        Каждый путь содержит первым элементом префикс, далее идут заголовки с символами #.
+        Последним эелементом может быть номер части вида "часть n", если связный текст был разделен на чанки.
 
-        Пример:
-        [["#История", "##Анатийские войны", "2"]]
+        Пример, если связный текст разбит на несколько чанков, то в конце пути прописан номер части:
+        [["арка_декатрис", "#История", "##Анатийские войны", "часть 1"]]
+        [["арка_декатрис", "#История", "##Анатийские войны", "часть 2"]]
+        Пример, если связный текст поместился в чанк полностью, часть в нем не пишется:
+        [["арка_декатрис", "#История", "##Последствия"]]
+
 
         Результат следует порядку запрошенных путей.
         Неизвестные пути пропускаются, повторные пути игнорируются.
@@ -114,23 +117,26 @@ class Bot:
 
         try:
             for i in range(max_steps):
+                print("ИТЕРАЦИЯ: ", i)
+                print("\n")
                 # обращение к LLM
                 response = await self.llm_provider.generate_completion_with_tools_async(
                     messages_for_llm,
-                    self.tools
+                    self.tools,
                 )
 
                 # если в ответе tools
                 if (isinstance(response, Tool)):
-                    # new_message = Message(role=Role.ASSISTANT, content=self.llm_provider.tool_to_str(response))
-                    # yield new_message
-                    # messages_for_llm.append(new_message)
                     tool_func = self.tools.get(response.tool_name)
                     # обращаемся к инструменту
                     if not tool_func:
                         raise Exception(f"Unknown tool: {response.tool_name}")
-                    print("ИТЕРАЦИЯ: ", i)
-                    print("\n")
+
+                    # сохраняем запрос ассистента на вызов инструмента
+                    assistant_tool_call = self.llm_provider.tool_to_assistant_message(response)
+                    messages_for_llm.append(assistant_tool_call)
+                    yield assistant_tool_call
+
                     print("response.tool_name: ", response.tool_name)
                     print("\n")
                     print("response.arguments for tool: ", response.arguments)
@@ -139,7 +145,7 @@ class Bot:
                     print("tool result: ", result)
                     print("\n")
                     tool_content = str(result)
-                    new_message = Message(role=Role.TOOL, content=tool_content)
+                    new_message = Message(role=Role.TOOL, content=tool_content, tool_call_id=response.tool_call_id)
                     # выбрасываем сообщение от tools, оно будет записано в базу
                     yield new_message
                     messages_for_llm.append(new_message)
@@ -151,7 +157,7 @@ class Bot:
                     return
 
             # сообщение, что LLM вышла из цикла по max_steps, а не по ответу
-            yield Message(role=Role.ASSISTANT, content="Не могу понять ваш запрос. Пожалуйста, попробуйте перефразировать ваш запрос.")
+            yield Message(role=Role.ASSISTANT, content="Не могу понять ваш запрос. Пожалуйста, попробуйте перефразировать.")
             return
 
         except Exception as e:
