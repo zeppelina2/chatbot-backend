@@ -23,6 +23,8 @@ class Message(BaseModel):
     """Краткая схема сообщения"""
     content: str
     role: Role
+    tool_call_id: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
 
 
 class MessageSchemaBD(Message):
@@ -92,3 +94,4 @@ class Tool(BaseModel):
     """Схема инструментов"""
     tool_name: str
     arguments: Dict[str, Any]
+    tool_call_id: str | None = None

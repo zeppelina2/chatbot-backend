@@ -13,7 +13,7 @@ class OllamaLLMProvider:
     через локально запущенный Ollama сервер
     """
 
-    def __init__(self, ollama_url, ollama_model, ollama_timeout):
+    def __init__(self, ollama_url: str, ollama_model: str, ollama_timeout: int):
         self.ollama_url = ollama_url
         self.ollama_model = ollama_model
         self.ollama_timeout = ollama_timeout
@@ -54,7 +54,7 @@ class OllamaLLMProvider:
             return Tool(tool_name=tool_name, arguments=arguments)
         else:
             # обрабатываем ответ с message
-            return Message(content=response.message.content, role=Role.ASSISTANT) 
+            return Message(content=response.message.content, role=Role.ASSISTANT)
 
 
     # функция берет json и делает из него строку
@@ -85,7 +85,23 @@ class OllamaLLMProvider:
             messages=message_for_llm,
             think=False
         )
-        
-        # print("llm_response_create_name: ", response)
+
 
         return response.message.content
+
+
+    def tool_to_assistant_message(self, tool: Tool) -> Message:
+        return Message(
+            role=Role.ASSISTANT,
+            content="",
+            tool_calls=[
+                {
+                    "id": tool.tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": tool.tool_name,
+                        "arguments": tool.arguments,
+                    },
+                },
+            ],
+        )
