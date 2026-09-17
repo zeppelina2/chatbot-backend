@@ -51,7 +51,10 @@ class PostgresDBProvider:
                     DialoguePSQL.created_at,
                     DialoguePSQL.updated_at,
                 )
-                .where(DialoguePSQL.user_id == user_id)
+                .where(
+                    DialoguePSQL.user_id == user_id,
+                    DialoguePSQL.active.is_(True),
+                )
                 .order_by(DialoguePSQL.updated_at.desc())
             )
 
@@ -158,11 +161,21 @@ class PostgresDBProvider:
 
         async with self.SessionLocal() as session:
             result = await session.execute(
-                delete(DialoguePSQL)
+                update(DialoguePSQL)
                 .where(DialoguePSQL.chat_id == chat_id)
+                .values(
+                    active=False,
+                    updated_at=datetime.now(),
+                )
+                .returning(
+                    DialoguePSQL.chat_id,
+                    DialoguePSQL.active,
+                )
             )
-
-            if result.rowcount == 0: # если удаление успешно, то rowcount будет равен 1
+            
+            dialogue = result.one_or_none()
+            
+            if not dialogue:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Dialogue with given chat_id not found"
