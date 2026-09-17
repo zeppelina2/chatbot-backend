@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, JSON
+from sqlalchemy import Column, String, DateTime, JSON, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base
 import uuid
@@ -14,5 +14,6 @@ class DialoguePSQL(Base):
     user_id = Column(UUID(as_uuid=True), nullable=False)
     name = Column(String, default="Новый диалог")
     messages = Column(MutableList.as_mutable(JSON), default=list)
+    active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
