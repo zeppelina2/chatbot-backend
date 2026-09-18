@@ -34,7 +34,6 @@ async def generate_dialogue_name(
 ):
     """Сгенерировать имя диалога по chat_id и первому сообщению пользователя"""
     new_dialogue_name = await BOT.generate_dialogue_name(message)
-    # print("new_dialogue_name: ", new_dialogue_name)
     edit_dialogue = await BOT.change_dialogue_name(chat_id, new_dialogue_name)
     
     return edit_dialogue

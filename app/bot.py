@@ -112,16 +112,16 @@ class Bot:
         # (всего, не каждого по отдельности)
         max_steps=10
     ) -> AsyncGenerator[Message]:
-
-        # контекст для модели
-        messages_for_llm = [
-            Message(
-                role=Role.SYSTEM,
-                content=self.prompts["system_ecumene_prompt"]),
-            *messages
-        ]
-
         try:
+            # контекст для модели
+            messages_for_llm = [
+                Message(
+                    role=Role.SYSTEM,
+                    content=self.prompts["system_ecumene_prompt"],
+                ),
+                *messages
+            ]
+
             for i in range(max_steps):
                 print("ИТЕРАЦИЯ: ", i)
                 print("\n")
@@ -134,19 +134,15 @@ class Bot:
                 # если в ответе tools
                 if (isinstance(response, Tool)):
                     tool_func = self.tools.get(response.tool_name)
-                    # обращаемся к инструменту
-                    if not tool_func:
-                        raise Exception(f"Unknown tool: {response.tool_name}")
-
-                    # сохраняем запрос ассистента на вызов инструмента
+                    # выбрасываем сообщение от LLM на запрос tool, оно будет записано в базу
                     assistant_tool_call = self.llm_provider.tool_to_assistant_message(response)
                     messages_for_llm.append(assistant_tool_call)
                     yield assistant_tool_call
-
                     print("response.tool_name: ", response.tool_name)
                     print("\n")
                     print("response.arguments for tool: ", response.arguments)
                     print("\n")
+                    # обращаемся к инструменту
                     result = tool_func(**response.arguments)
                     print("tool result: ", result)
                     print("\n")
@@ -177,8 +173,8 @@ class Bot:
         return messages
 
 
-    async def get_message_user_assistant_list(self, chat_id: UUID) -> MessageListSchema:
-        messages = await self.db_provider.get_message_user_assistant_list(chat_id)
+    async def get_message_list_for_front(self, chat_id: UUID) -> MessageListSchema:
+        messages = await self.db_provider.get_message_list_for_front(chat_id)
         return messages
 
 

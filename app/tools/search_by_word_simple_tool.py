@@ -110,8 +110,6 @@ def markdown_search_text(
         )
         return results
 
-    # print("results with error: ", results)
-
     # Если проверки прошли, работаем с текстом:
     text = md_path.read_text(encoding="utf-8")
 
@@ -190,9 +188,6 @@ def markdown_search_text(
             " ",
             text[left:right],
         ).strip()
-        
-        # print("snippet: ", snippet)
-        # print("\n")
 
         results.append(snippet)
         chunk_number += 1

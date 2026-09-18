@@ -42,7 +42,7 @@ class MessageListSchema(BaseModel):
     messages: list[MessageSchemaBD]
 
     def to_raw_messages(self) -> list[Message]:
-        return [Message(content=m.content, role=m.role) for m in self.messages]
+        return [Message.model_validate(m) for m in self.messages]
 
 
 class DeleteMessageListSchema(BaseModel):
