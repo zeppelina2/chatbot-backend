@@ -1,6 +1,8 @@
 from typing import Any
 from ollama import AsyncClient
 import yaml
+from uuid import uuid4
+import json
 
 from app.schemas import Message, Role, Tool
 
@@ -27,6 +29,57 @@ class OllamaLLMProvider:
         )
 
 
+    def prepare_messages_for_ollama(
+        self,
+        messages: list[Message],
+    ) -> list[dict[str, Any]]:
+        prepared_messages: list[dict[str, Any]] = []
+
+        # Связываем сохранённый ID вызова с именем инструмента.
+        tool_names_by_id: dict[str, str] = {}
+
+        for message in messages:
+            prepared: dict[str, Any] = {
+                "role": message.role,
+                "content": message.content or "",
+            }
+
+            if message.tool_calls:
+                ollama_tool_calls = []
+
+                for call in message.tool_calls:
+                    function = call["function"]
+                    arguments = function["arguments"]
+
+                    # Поддерживаем и новый формат, и старые словари.
+                    if isinstance(arguments, str):
+                        arguments = json.loads(arguments)
+
+                    call_id = call.get("id")
+
+                    if call_id:
+                        tool_names_by_id[call_id] = function["name"]
+
+                    ollama_tool_calls.append({
+                        "function": {
+                            "name": function["name"],
+                            "arguments": arguments,
+                        },
+                    })
+
+                prepared["tool_calls"] = ollama_tool_calls
+
+            if message.role == Role.TOOL:
+                tool_name = tool_names_by_id.get(message.tool_call_id)
+
+                if tool_name:
+                    prepared["tool_name"] = tool_name
+
+            prepared_messages.append(prepared)
+
+        return prepared_messages
+
+
     # метод, работающий с tools
     async def generate_completion_with_tools_async(
         self,
@@ -35,13 +88,11 @@ class OllamaLLMProvider:
     ) -> Tool | Message:
         response = await self.async_client.chat(
             model=self.ollama_model,
-            messages=messages,
+            messages=self.prepare_messages_for_ollama(messages),
             # передаем список инструментов
             tools=list(tools.values()),
             think=False
         )
-        
-        # print("response: ", response)
 
         # обрабатываем ответ с tools, берем только один tool,
         # не будем позволять работать с несколькими тулами одновременно,
@@ -51,7 +102,11 @@ class OllamaLLMProvider:
             tool_name = call.function.name
             arguments = call.function.arguments
 
-            return Tool(tool_name=tool_name, arguments=arguments)
+            return Tool(
+                tool_name=tool_name,
+                arguments=arguments,
+                tool_call_id=f"call_{uuid4().hex}",
+            )
         else:
             # обрабатываем ответ с message
             return Message(content=response.message.content, role=Role.ASSISTANT)
@@ -100,7 +155,10 @@ class OllamaLLMProvider:
                     "type": "function",
                     "function": {
                         "name": tool.tool_name,
-                        "arguments": tool.arguments,
+                        "arguments": json.dumps(
+                            tool.arguments,
+                            ensure_ascii=False,
+                        ),
                     },
                 },
             ],

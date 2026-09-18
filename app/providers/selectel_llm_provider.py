@@ -97,6 +97,11 @@ class SelectelLLMProvider:
             model=self.selectel_model,
             messages=messages,
             stream=False,
+            extra_body={
+                "chat_template_kwargs": {
+                    "enable_thinking": False,
+                },
+            },
             **tool_options,
         )
         
@@ -141,6 +146,11 @@ class SelectelLLMProvider:
             model=self.selectel_model,
             messages=message_for_llm,
             stream=False,
+            extra_body={
+                "chat_template_kwargs": {
+                    "enable_thinking": False,
+                },
+            },
         )
 
         return response.choices[0].message.content
