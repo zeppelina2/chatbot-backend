@@ -173,8 +173,8 @@ class Bot:
         return messages
 
 
-    async def get_message_user_assistant_list(self, chat_id: UUID) -> MessageListSchema:
-        messages = await self.db_provider.get_message_user_assistant_list(chat_id)
+    async def get_message_list_for_front(self, chat_id: UUID) -> MessageListSchema:
+        messages = await self.db_provider.get_message_list_for_front(chat_id)
         return messages
 
 

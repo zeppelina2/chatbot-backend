@@ -218,7 +218,7 @@ class PostgresDBProvider:
             messages=[
                 MessageSchemaBD.model_validate(message)
                 for message in messages_list.messages
-                if message["role"] in (Role.USER, Role.ASSISTANT) and message["content"]
+                if message.role in (Role.USER, Role.ASSISTANT) and message.content
             ]
         )
 
