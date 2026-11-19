@@ -30,7 +30,9 @@ async def create_dialogue(user_id: UUID):
 
 @router.put("/dialogues/{chat_id}", response_model=DialogueSchema)
 async def change_dialogue_name(
-        chat_id: UUID, name: str = Body(..., embed=True)):
+    chat_id: UUID,
+    name: str = Body(..., embed=True)
+):
     """Изменить диалог по chat_id"""
     edit_dialogue = await BOT.change_dialogue_name(chat_id, name)
     return edit_dialogue

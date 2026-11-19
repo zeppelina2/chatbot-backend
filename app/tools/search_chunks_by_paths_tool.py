@@ -1,30 +1,38 @@
 from typing import TypedDict
 
-from app.tools.chunking_md_file import MarkdownChunk
+from app.tools.chunking_md_file import ChunkPath, HEADING_FIELDS, KnowledgeLibrary, MarkdownChunk, path_key
 
 
 MAX_TOTAL_CONTENT_LENGTH = 15000
 
+def _validate_path(path: ChunkPath) -> None:
+    if not isinstance(path, dict) or not isinstance(path.get("fileName"), str):
+        raise ValueError("Каждый путь должен быть объектом со строковым fileName.")
+    if type(path.get("part")) is not int or path["part"] < 1:
+        raise ValueError("Поле part должно быть целым числом от 1.")
+    for field, value in path.items():
+        if field in ("fileName", "part"):
+            continue
+        if field not in HEADING_FIELDS or not isinstance(value, str):
+            raise ValueError(f"Недопустимое поле пути или значение: {field!r}.")
+
 
 class ChunkSearchResult(TypedDict):
     chunks: list[MarkdownChunk]
-    skipped_paths: list[list[str]]
+    skipped_paths: list[ChunkPath]
 
 
 # поиск чанков по путям в базе знаний
 def search_chunks_by_paths(
-    knowlege_library: dict[tuple[str, ...], list[MarkdownChunk]],
-    paths: list[list[str]],
+    knowlege_library: KnowledgeLibrary,
+    paths: list[ChunkPath],
 ) -> ChunkSearchResult:
     """
     Получить чанки по точному совпадению полных путей и пути не вместившихся чанков.
     Суммарный контент возвращаемых чанков 15000.
 
-    Каждый путь содержит заголовки с символами # и номер
-    части строкой в последнем элементе.
-
-    Пример:
-    [["#История", "##Анатийские войны", "2"]]
+    Передай объекты путей из search_chunk_paths_by_word без изменений.
+    Например: [{"fileName": "арка_декатрис", "h1": "#История", "part": 1}].
 
     Результат следует порядку запрошенных путей.
     Неизвестные пути пропускаются, повторные пути игнорируются.
@@ -37,11 +45,12 @@ def search_chunks_by_paths(
         "chunks": [],
         "skipped_paths": [],
     }
-    seen: set[tuple[str, ...]] = set()
+    seen: set[tuple] = set()
     total_length = 0
 
     for path in paths:
-        key = tuple(path)
+        _validate_path(path)
+        key = path_key(path)
 
         if key in seen:
             continue
@@ -60,6 +69,6 @@ def search_chunks_by_paths(
             total_length += content_length
 
         if has_skipped_chunks:
-            result["skipped_paths"].append(list(key))
+            result["skipped_paths"].append(path.copy())
 
     return result
