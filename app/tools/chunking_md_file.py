@@ -24,29 +24,37 @@ def save_chunks(
 
     return path
 
-"""Нарезка Markdown по каждому ATX-заголовку (# — ######).
+# h1–h6 соответствуют числу # в исходном ATX-заголовке.
+class _RequiredPathFields(TypedDict):
+    fileName: str
+    part: int
 
-Заголовки хранятся в path, chunk содержит только собственный текст раздела.
-Пустые/пробельные разделы пропускаются. Пробелы по краям частей удаляются,
-внутреннее форматирование сохраняется. Текст до первого заголовка: path=['1'].
-Номер части добавляется к пути всегда. Повторяющиеся цепочки заголовков могут
-давать одинаковые path; chunk_id уникален в рамках результата одной нарезки,
-но не стабилен при изменении документа. part/parts считаются для каждого
-отдельного вхождения раздела, а не для группы одинаковых названий.
 
-Поддерживаются обычные Markdown-заголовки с пробелом после # и fenced code.
-Setext-заголовки и полная грамматика CommonMark не поддерживаются.
-Разделение предложений эвристическое (возможны разрывы после сокращений).
-Большие таблицы и блоки кода могут разделяться: отдельные чанки не обязательно
-являются самостоятельными корректно отображаемыми Markdown-документами.
-"""
+class ChunkPath(_RequiredPathFields, total=False):
+    h1: str
+    h2: str
+    h3: str
+    h4: str
+    h5: str
+    h6: str
+
+
+HEADING_FIELDS = ("h1", "h2", "h3", "h4", "h5", "h6")
+
+
+def path_key(path: ChunkPath) -> tuple:
+    return (path["fileName"], *(path.get(field) for field in HEADING_FIELDS), path["part"])
+
 
 class MarkdownChunk(TypedDict):
     chunk_id: int
-    path: list[str]
+    path: ChunkPath
     part: int
     parts: int
     chunk: str
+
+
+KnowledgeLibrary = dict[tuple, list[MarkdownChunk]]
 
 
 _HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?)|[ \t]*)$") # Заголовки
@@ -129,7 +137,7 @@ def _clean_heading(title: str) -> str:
     return title.strip()
 
 
-def _sections(text: str) -> Iterator[tuple[list[str], str]]:
+def _sections(text: str) -> Iterator[tuple[list[tuple[int, str]], str]]:
     """Каждый заголовок завершает предыдущий раздел, независимо от уровня."""
     stack: list[tuple[int, str]] = []
     lines: list[str] = []
@@ -145,7 +153,7 @@ def _sections(text: str) -> Iterator[tuple[list[str], str]]:
         elif fence and not (fence[1][0] == "`" and "`" in fence[2]):
             fence_char, fence_length = fence[1][0], len(fence[1])
         elif heading := _HEADING.match(value):
-            yield [label for _, label in stack], "".join(lines)
+            yield list(stack), "".join(lines)
             lines = []
             level = len(heading[1])
             title = _clean_heading(heading[2] or "")
@@ -155,7 +163,7 @@ def _sections(text: str) -> Iterator[tuple[list[str], str]]:
             continue
         lines.append(line)
 
-    yield [label for _, label in stack], "".join(lines)
+    yield list(stack), "".join(lines)
 
 
 def _split_text(text: str, limit: int, depth: int = 0) -> list[str]:
@@ -204,11 +212,10 @@ def chunk_markdown_with_tree(
         ]
         parts_count = len(parts)
 
+        headings = {f"h{level}": label for level, label in path}
         if path:
-            heading = path[-1]
+            level, heading = path[-1]
 
-            # Количество # определяет уровень заголовка.
-            level = len(heading) - len(heading.lstrip("#"))
             indent = "\t" * level
 
             tree_lines.append(f"{indent}{heading}")
@@ -226,7 +233,7 @@ def chunk_markdown_with_tree(
         for part, piece in enumerate(parts, start=1):
             chunks.append({
                 "chunk_id": len(chunks) + 1,
-                "path": [*path, f"часть {str(part)}"] if part > 1 else [*path],
+                "path": {"fileName": document_name, **headings, "part": part},
                 "part": part,
                 "parts": parts_count,
                 "chunk": piece,
@@ -238,8 +245,8 @@ def chunk_markdown_with_tree(
 # Форматирует чанки в базу знаний, где key = path, пара для него - соответствующий path чанк
 def create_knowlege_library_from_markdown(
     file_paths: list[str | Path],
-) -> tuple[dict[tuple[str, ...], list[MarkdownChunk]], str]:
-    knowledge_library: dict[tuple[str, ...], list[MarkdownChunk]] = {}
+) -> tuple[KnowledgeLibrary, str]:
+    knowledge_library: KnowledgeLibrary = {}
     headings_trees: list[str] = []
     document_names: set[str] = set()
     chunk_id = 0
@@ -263,7 +270,8 @@ def create_knowlege_library_from_markdown(
             document_name=document_name,
         )
         
-        # save_chunks(chunks, f"app/resources/{document_name}.json")
+        saved_path = save_chunks(chunks, f"app/resources/{document_name}.json")
+        print(f"Сохранено чанков: {len(chunks)}. Файл: {saved_path.resolve()}")
 
         headings_trees.append(headings_tree)
 
@@ -273,10 +281,9 @@ def create_knowlege_library_from_markdown(
             library_chunk: MarkdownChunk = {
                 **chunk,
                 "chunk_id": chunk_id,
-                "path": [document_name, *chunk["path"]],
             }
 
-            key = tuple(library_chunk["path"])
+            key = path_key(library_chunk["path"])
             knowledge_library.setdefault(key, []).append(library_chunk)
 
     return knowledge_library, "\n\n".join(headings_trees)

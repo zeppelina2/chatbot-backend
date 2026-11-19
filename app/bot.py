@@ -14,7 +14,7 @@ from app.schemas import (
     Tool
 )
 
-from app.tools.chunking_md_file import create_knowlege_library_from_markdown, save_chunks
+from app.tools.chunking_md_file import create_knowlege_library_from_markdown, ChunkPath, save_chunks
 from app.tools.search_chunks_by_paths_tool import search_chunks_by_paths, ChunkSearchResult
 from app.tools.search_paths_by_word_tool import search_chunk_paths_by_word
 
@@ -42,27 +42,24 @@ class Bot:
             "search_chunk_paths_by_word": self.search_chunk_paths_by_word,
         }
         
-        # print("headings_tree: ", headings_tree)
+        # Все пути с заголовком вида «…Сессия N.»
+        # get_paths_by_regex = self.search_chunk_paths_by_word(regex=r"#.*Сессия \d+\.")
+        # print("get_paths_by_regex", get_paths_by_regex[13])
         
-        # items = [['арка_декатрис', '#26.04.2026 г. Сессия 11. Храм весны', '##Разговор Трис и Корвуса'], ['арка_декатрис', '#26.04.2026 г. Сессия 11. Храм весны', '##Башар Махди']]
-        # resp = self.search_chunks_by_paths(items)
-        # print("Получить чанки по списку путей", resp)
+        # print("\n\n")
+
+        # # Конкретная сессия. Точка после 1 исключает «Сессия 10.» и «Сессия 11.».
+        # get_paths_by_word = self.search_chunk_paths_by_word(search_str="Сессия 1.")
+        # print("get_paths_by_word", get_paths_by_word[13])
 
 
-    def search_chunks_by_paths(self, paths: list[list[str]]) -> ChunkSearchResult:
+    def search_chunks_by_paths(self, paths: list[ChunkPath]) -> ChunkSearchResult:
         """
         Получить чанки по точному совпадению полных путей и пути не вместившихся чанков.
         Суммарный контент возвращаемых чанков 15000.
-        
-        paths - список путей.
-        Каждый путь является списком и содержит первым элементом префикс, далее идут заголовки с символами #.
-        Последним элементом может быть номер части вида "часть n", если связный текст был разделен на чанки.
 
-        Пример, если связный текст разбит на несколько чанков, то в конце пути прописан номер части:
-        [["арка_декатрис", "#История", "##Анатийские войны", "часть 1"]]
-        [["арка_декатрис", "#История", "##Анатийские войны", "часть 2"]]
-        Пример, если связный текст поместился в чанк полностью, часть в нем не пишется:
-        [["арка_декатрис", "#История", "##Последствия"]]
+        Передай объекты путей из search_chunk_paths_by_word без изменений.
+        Например: [{"fileName": "арка_декатрис", "h1": "#История", "part": 1}].
 
         Результат следует порядку запрошенных путей.
         Неизвестные пути пропускаются, повторные пути игнорируются.
@@ -83,7 +80,7 @@ class Bot:
         full_word: bool = False,
         case_sensitive: bool = False,
         regex: str = "",
-    ) -> list[list[str]]:
+    ) -> list[ChunkPath]:
         """
         Найти пути чанков по тексту или регулярному выражению.
     
@@ -92,7 +89,8 @@ class Bot:
         full_word: запрещает соседние буквы, цифры и подчёркивания.
         case_sensitive: включает учёт регистра.
 
-        Поиск выполняется только по содержимому chunk.
+        Поиск выполняется по заголовкам h1–h6 и тексту чанков.
+        Для поиска по названию раздела достаточно передать search_str.
         Пустой запрос возвращает пустой список.
         Каждый найденный путь возвращается один раз.
         """

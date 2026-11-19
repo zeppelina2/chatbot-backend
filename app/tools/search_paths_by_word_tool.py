@@ -1,14 +1,15 @@
 import re
 
-from app.tools.chunking_md_file import MarkdownChunk
+from app.tools.chunking_md_file import ChunkPath, HEADING_FIELDS, KnowledgeLibrary
+
 
 def search_chunk_paths_by_word(
-    knowlege_library: dict[tuple[str, ...], list[MarkdownChunk]],
+    knowlege_library: KnowledgeLibrary,
     search_str: str = "",
     full_word: bool = False,
     case_sensitive: bool = False,
     regex: str = "",
-) -> list[list[str]]:
+) -> list[ChunkPath]:
     """
     Найти пути чанков по тексту или регулярному выражению.
     
@@ -38,11 +39,21 @@ def search_chunk_paths_by_word(
     flags = 0 if case_sensitive else re.IGNORECASE
     compiled_pattern = re.compile(pattern, flags)
 
-    return [
-        list(path)
-        for path, chunks in knowlege_library.items()
+    matched_paths: list[ChunkPath] = []
+
+    for chunks in knowlege_library.values():
+        # Все чанки в этой группе имеют одинаковый путь.
+        path = chunks[0]["path"]
+
         if any(
-            compiled_pattern.search(chunk["chunk"]) is not None
-            for chunk in chunks
-        )
-    ]
+            compiled_pattern.search(path[field])
+            for field in HEADING_FIELDS
+            if field in path
+        ):
+            matched_paths.append(path.copy())
+            continue
+
+        if any(compiled_pattern.search(chunk["chunk"]) for chunk in chunks):
+            matched_paths.append(path.copy())
+
+    return matched_paths
