@@ -1,5 +1,7 @@
+from sqlalchemy import delete, select, update, func
+from sqlalchemy.dialects.postgresql import insert
+from app.models import AuthSessionPSQL, UserPSQL
 from datetime import datetime
-from sqlalchemy import select, update
 from uuid import UUID, uuid4
 from fastapi import HTTPException, status
 
@@ -68,7 +70,7 @@ class PostgresDBProvider:
             )
 
 
-    async def get_dialogue(self, chat_id: UUID) -> DialogueListSchema:
+    async def get_dialogue(self, chat_id: UUID, *, user_id: UUID) -> DialogueSchema:
         """Получить диалог по chat_id"""
 
         async with self.SessionLocal() as session:
@@ -80,10 +82,19 @@ class PostgresDBProvider:
                     DialoguePSQL.created_at,
                     DialoguePSQL.updated_at,
                 )
-                .where(DialoguePSQL.chat_id == chat_id)
+                .where(
+                    DialoguePSQL.chat_id == chat_id,
+                    DialoguePSQL.user_id == user_id,
+                    DialoguePSQL.active.is_(True),
+                )
             )
 
             dialogue = result.one_or_none()
+            if dialogue is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Dialogue with given chat_id not found",
+                )
 
             return DialogueSchema.model_validate(dialogue)
 
@@ -121,15 +132,21 @@ class PostgresDBProvider:
 
     async def change_dialogue_name(
         self,
-        chat_id,
-        name
+        chat_id: UUID,
+        name: str,
+        *,
+        user_id: UUID,
     ) -> DialogueSchema:
         """Изменить имя диалога по chat_id"""
 
         async with self.SessionLocal() as session:
             result = await session.execute(
                 update(DialoguePSQL)
-                .where(DialoguePSQL.chat_id == chat_id)
+                .where(
+                    DialoguePSQL.chat_id == chat_id,
+                    DialoguePSQL.user_id == user_id,
+                    DialoguePSQL.active.is_(True),
+                )
                 .values(
                     name=name,
                     updated_at=datetime.now(),
@@ -156,13 +173,22 @@ class PostgresDBProvider:
             return DialogueSchema.model_validate(dialogue)
 
 
-    async def delete_dialogue(self, chat_id: UUID) -> None:
+    async def delete_dialogue(
+        self,
+        chat_id: UUID,
+        *,
+        user_id: UUID
+    ) -> None:
         """Удалить диалог по chat_id"""
 
         async with self.SessionLocal() as session:
             result = await session.execute(
                 update(DialoguePSQL)
-                .where(DialoguePSQL.chat_id == chat_id)
+                .where(
+                    DialoguePSQL.chat_id == chat_id,
+                    DialoguePSQL.user_id == user_id,
+                    DialoguePSQL.active.is_(True),
+                )
                 .values(
                     active=False,
                     updated_at=datetime.now(),
@@ -184,13 +210,17 @@ class PostgresDBProvider:
             await session.commit()
 
 
-    async def get_message_list(self, chat_id: UUID) -> MessageListSchema:
+    async def get_message_list(self, chat_id: UUID, *, user_id: UUID) -> MessageListSchema:
         """Получить список сообщений в диалоге с chat_id"""
 
         async with self.SessionLocal() as session:
             result = await session.execute(
                 select(DialoguePSQL.messages)
-                .where(DialoguePSQL.chat_id == chat_id)
+                .where(
+                    DialoguePSQL.chat_id == chat_id,
+                    DialoguePSQL.user_id == user_id,
+                    DialoguePSQL.active.is_(True),
+                )
             )
 
             messages = result.scalar_one_or_none()
@@ -209,10 +239,15 @@ class PostgresDBProvider:
             )
 
 
-    async def get_message_list_for_front(self, chat_id: UUID) -> MessageListSchema:
+    async def get_message_list_for_front(
+        self,
+        chat_id: UUID,
+        *,
+        user_id: UUID
+    ) -> MessageListSchema:
         """Получить список сообщений в диалоге с chat_id"""
 
-        messages_list = await self.get_message_list(chat_id=chat_id)
+        messages_list = await self.get_message_list(chat_id=chat_id, user_id=user_id)
 
         return MessageListSchema(
             messages=[
@@ -226,14 +261,21 @@ class PostgresDBProvider:
     async def create_message(
         self,
         chat_id: UUID,
-        message_data: Message
+        message_data: Message,
+        *,
+        user_id: UUID,
     ) -> MessageSchemaBD:
         """Создать сообщение в диалоге с chat_id"""
 
         async with self.SessionLocal() as session:
             result = await session.execute(
                 select(DialoguePSQL.messages)
-                .where(DialoguePSQL.chat_id == chat_id)
+                .where(
+                    DialoguePSQL.chat_id == chat_id,
+                    DialoguePSQL.user_id == user_id,
+                    DialoguePSQL.active.is_(True),
+                )
+                .with_for_update()
             )
 
             messages = result.scalar_one_or_none()
@@ -264,7 +306,11 @@ class PostgresDBProvider:
             
             await session.execute(
                 update(DialoguePSQL)
-                .where(DialoguePSQL.chat_id == chat_id)
+                .where(
+                    DialoguePSQL.chat_id == chat_id,
+                    DialoguePSQL.user_id == user_id,
+                    DialoguePSQL.active.is_(True),
+                )
                 .values(
                     messages=messages,
                     updated_at=datetime.now(),
@@ -279,14 +325,21 @@ class PostgresDBProvider:
     async def delete_message_list(
         self,
         chat_id: UUID,
-        messages_id_list_to_remove: list[UUID]
+        messages_id_list_to_remove: list[UUID],
+        *,
+        user_id: UUID,
     ) -> DeleteMessageListSchema:
         """Удалить сообщение по chat_id и списку message_id"""
 
         async with self.SessionLocal() as session:
             result = await session.execute(
                 select(DialoguePSQL.messages)
-                .where(DialoguePSQL.chat_id == chat_id)
+                .where(
+                    DialoguePSQL.chat_id == chat_id,
+                    DialoguePSQL.user_id == user_id,
+                    DialoguePSQL.active.is_(True),
+                )
+                .with_for_update()
             )
 
             messages = result.scalar_one_or_none()
@@ -320,7 +373,11 @@ class PostgresDBProvider:
             # Удаление сообщений
             await session.execute(
                 update(DialoguePSQL)
-                .where(DialoguePSQL.chat_id == chat_id)
+                .where(
+                    DialoguePSQL.chat_id == chat_id,
+                    DialoguePSQL.user_id == user_id,
+                    DialoguePSQL.active.is_(True),
+                )
                 .values(
                     messages=remaining_messages,
                     updated_at=datetime.now(),
@@ -330,3 +387,62 @@ class PostgresDBProvider:
             await session.commit()
 
             return { "delete": deleted, "not_found": not_found }
+
+
+    async def register_user(self, username: str, password_hash: str) -> UUID | None:
+        """Регистрация пользователя"""
+
+        # При совпадении логина, в том числе при конкурентной регистрации, вернуть None
+        async with self.SessionLocal.begin() as db:
+            statement = (
+                insert(UserPSQL)
+                .values(username=username, password_hash=password_hash)
+                .on_conflict_do_nothing(index_elements=[UserPSQL.username])
+                .returning(UserPSQL.user_id)
+            )
+            return (await db.execute(statement)).scalar_one_or_none()
+
+
+    async def get_login_credentials(self, username: str) -> tuple[UUID, str] | None:
+        """Получение секретов"""
+
+        async with self.SessionLocal() as db:
+            statement = select(UserPSQL.user_id, UserPSQL.password_hash).where(
+                UserPSQL.username == username
+            )
+            row = (await db.execute(statement)).one_or_none()
+            return (row.user_id, row.password_hash) if row else None
+
+
+    async def create_auth_session(self, user_id: UUID, token_hash: str, expires_at: datetime):
+        """Авторизация"""
+
+        async with self.SessionLocal.begin() as db:
+            db.add(AuthSessionPSQL(
+                user_id=user_id, token_hash=token_hash, expires_at=expires_at,
+            ))
+
+
+    async def get_auth_session(self, token_hash: str):
+        """Получение авторизационной сессии"""
+
+        async with self.SessionLocal() as db:
+            statement = (
+                select(AuthSessionPSQL.session_id, UserPSQL.user_id, UserPSQL.username)
+                .join(UserPSQL, UserPSQL.user_id == AuthSessionPSQL.user_id)
+                .where(
+                    AuthSessionPSQL.token_hash == token_hash,
+                    AuthSessionPSQL.expires_at > func.now()
+                )
+            )
+            row = (await db.execute(statement)).mappings().one_or_none()
+            return dict(row) if row else None
+
+
+    async def revoke_auth_session(self, token_hash: str) -> None:
+        """Выход из лк - удаление сессии"""
+
+        async with self.SessionLocal.begin() as db:
+            await db.execute(
+                delete(AuthSessionPSQL).where(AuthSessionPSQL.token_hash == token_hash)
+            )
