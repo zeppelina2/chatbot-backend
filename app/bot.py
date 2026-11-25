@@ -1,3 +1,10 @@
+import asyncio
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
+
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 from uuid import UUID
 from collections.abc import AsyncGenerator
 import yaml
@@ -17,6 +24,15 @@ from app.schemas import (
 from app.tools.chunking_md_file import create_knowlege_library_from_markdown, ChunkPath, save_chunks
 from app.tools.search_chunks_by_paths_tool import search_chunks_by_paths, ChunkSearchResult
 from app.tools.search_paths_by_word_tool import search_chunk_paths_by_word
+
+
+SESSION_TTL = timedelta(days=7)
+_password_hasher = PasswordHasher()
+_dummy_password_hash = _password_hasher.hash(secrets.token_urlsafe(32))
+
+
+def _session_digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 class Bot:
@@ -166,30 +182,34 @@ class Bot:
 
     # =================== CRUD =================== #
 
-    async def get_message_list(self, chat_id: UUID) -> MessageListSchema:
-        messages = await self.db_provider.get_message_list(chat_id)
+    async def get_message_list(self, chat_id: UUID, *, user_id: UUID) -> MessageListSchema:
+        messages = await self.db_provider.get_message_list(chat_id, user_id=user_id)
         return messages
 
 
-    async def get_message_list_for_front(self, chat_id: UUID) -> MessageListSchema:
-        messages = await self.db_provider.get_message_list_for_front(chat_id)
+    async def get_message_list_for_front(self, chat_id: UUID, *, user_id: UUID) -> MessageListSchema:
+        messages = await self.db_provider.get_message_list_for_front(chat_id, user_id=user_id)
         return messages
 
 
     async def create_message(
         self, chat_id: UUID,
-        message: Message
+        message: Message,
+        *,
+        user_id: UUID,
     ) -> MessageSchemaBD:
-        new_message = await self.db_provider.create_message(chat_id, message)
+        new_message = await self.db_provider.create_message(chat_id, message, user_id=user_id)
         return new_message
 
 
     async def delete_message_list(
         self,
         chat_id: UUID,
-        message_list: list[UUID]
+        message_list: list[UUID],
+        *,
+        user_id: UUID,
     ) -> DeleteMessageListSchema:
-        response = await self.db_provider.delete_message_list(chat_id, message_list)
+        response = await self.db_provider.delete_message_list(chat_id, message_list, user_id=user_id)
         return response
 
 
@@ -203,10 +223,11 @@ class Bot:
 
     async def get_dialogue(
         self,
-        chat_id: UUID
-    ) -> DialogueListSchema:
-        dialogues = await self.db_provider.get_dialogue(chat_id)
-        return dialogues
+        chat_id: UUID,
+        *,
+        user_id: UUID,
+    ) -> DialogueSchema:
+        return await self.db_provider.get_dialogue(chat_id, user_id=user_id)
 
 
     async def create_dialogue(
@@ -220,9 +241,11 @@ class Bot:
     async def change_dialogue_name(
         self,
         chat_id: UUID,
-        name: str
+        name: str,
+        *, # все параметры справа от "*" нужно передавать по имени
+        user_id: UUID,
     ) -> DialogueSchema:
-        edit_dialogue = await self.db_provider.change_dialogue_name(chat_id, name)
+        edit_dialogue = await self.db_provider.change_dialogue_name(chat_id, name, user_id=user_id)
         return edit_dialogue
 
 
@@ -231,5 +254,36 @@ class Bot:
         return new_dialogue_name
 
 
-    async def delete_dialogue(self, chat_id: UUID) -> None:
-        await self.db_provider.delete_dialogue(chat_id)
+    async def delete_dialogue(self, chat_id: UUID, *, user_id: UUID) -> None:
+        await self.db_provider.delete_dialogue(chat_id, user_id=user_id)
+
+
+    async def register_user(self, username: str, password: str) -> UUID | None:
+        password_hash = await asyncio.to_thread(_password_hasher.hash, password)
+        return await self.db_provider.register_user(username, password_hash)
+
+
+    async def login_user(self, username: str, password: str) -> str | None:
+        credentials = await self.db_provider.get_login_credentials(username)
+        password_hash = credentials[1] if credentials else _dummy_password_hash
+        try:
+            await asyncio.to_thread(_password_hasher.verify, password_hash, password)
+        except VerifyMismatchError:
+            return None
+        if credentials is None:
+            return None
+
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc) + SESSION_TTL
+        await self.db_provider.create_auth_session(
+            credentials[0], _session_digest(token), expires_at,
+        )
+        return token
+
+
+    async def get_auth_session(self, token: str):
+        return await self.db_provider.get_auth_session(_session_digest(token))
+
+
+    async def logout_user(self, token: str) -> None:
+        await self.db_provider.revoke_auth_session(_session_digest(token))
